@@ -70,7 +70,7 @@ goto :end
 
 :live
 echo.
-set /p "METHOD=탐지 방법 [aruco/checkerboard/color_dot/edge/grid/composite] (기본: aruco): "
+set /p "METHOD=탐지 방법 [aruco/color_dot/edge/grid/composite] (기본: aruco): "
 if "%METHOD%"=="" set "METHOD=aruco"
 %PY% a4_plane_research.py --live --method %METHOD%
 goto :end

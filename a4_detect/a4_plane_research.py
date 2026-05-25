@@ -12,7 +12,6 @@ Step 0: 시트 생성
 
 Step 1: 단일 방법 실시간 테스트
   python a4_plane_research.py --live --method aruco
-  python a4_plane_research.py --live --method checkerboard
   python a4_plane_research.py --live --method composite --composite-mode best_of_all
 
 Step 2: 모든 방법 동시 비교 (멀티패널)
@@ -53,7 +52,6 @@ Step 7: 기존 CSV 로그에서 리포트 재생성
   edge         — A4 외곽선(Canny 에지) 기반
   color_dot    — 색상 마커(빨/초/파/노 원) 기반
   aruco        — ArUco 마커 기반 (DICT_4X4_50)
-  checkerboard — 체커보드 패턴 기반
   grid         — 격자 라인 기반 (Hough 변환)
   composite    — 위 방법 복합 (mode 선택 가능)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -604,7 +602,7 @@ def run_precheck_a4_all(
     """모든 A4 평면 좌표계 검출 방식을 같은 카메라 프레임에서 선행 테스트."""
     from collections import deque
 
-    method_order = ["aruco", "checkerboard", "color_dot", "edge", "grid", "composite"]
+    method_order = ["aruco", "color_dot", "edge", "grid", "composite"]
     detectors = []
     for name in method_order:
         if name == "composite":
@@ -1199,7 +1197,7 @@ def main() -> None:
                    choices=list(METHODS.keys()),
                    help="탐지 방법 (기본: aruco)")
     p.add_argument("--methods", nargs="+",
-                   default=["edge", "color_dot", "aruco", "checkerboard"],
+                   default=["edge", "color_dot", "aruco", "grid"],
                    help="--compare / --benchmark 용 방법 목록")
     p.add_argument("--camera", type=int, default=0,
                    help="카메라 장치 ID (기본: 0)")
@@ -1217,7 +1215,7 @@ def main() -> None:
     p.add_argument("--out-dir", default=None,
                    help="--gen-sheets 출력 디렉터리 (기본: sheets/output)")
     p.add_argument("--only", default=None,
-                   choices=["edge", "color_dot", "aruco", "checkerboard",
+                   choices=["edge", "color_dot", "aruco",
                             "grid", "composite", "eval", "eval_one_point",
                             "calib_checkerboard"],
                    help="--gen-sheets 에서 특정 시트만 생성 "
