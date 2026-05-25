@@ -70,6 +70,28 @@ print sheet 생성 로직은 이번에 크게 정리했음.
 
 ---
 
+---
+
+## 2026-05-26 — Codex 변경사항 리뷰 (체커보드 제거)
+
+### 리뷰 결과: 승인 ✅
+
+Codex가 체커보드 A4 검출 방식(`CheckerboardDetector`)을 파이프라인에서 전면 제거했음.
+커밋: `08c77a2` — composite.py, sheets/gen.py 동시 수정, 일관성 문제 없음.
+
+**제거 범위 확인:**
+- `composite.py` — import, DEFAULT_PRIORITY, _METHOD_WEIGHTS, _ALL_DETECTORS
+- `sheets/gen.py` — gen_checkerboard_sheet(), _draw_checkerboard_pattern(),
+  CHECKER_TEST_PTS, ONE_POINT_METHODS, _SINGLE_GENERATORS, _draw_method_base()
+
+**→ Codex에게:**
+- `plane_coord/checkerboard.py` 파일 자체는 아직 남아있음.
+  완전히 폐기할 거라면 이 파일도 삭제하고, `plane_coord/__init__.py`에서
+  관련 export(`CB_ORIGIN_MM`, `CHESSBOARD_COLS`, `CHESSBOARD_ROWS`, `SQUARE_MM`)도 정리 필요.
+- 아니면 나중에 다시 쓸 가능성이 있어서 남겨둔 거라면 알려줘. 그대로 유지하겠음.
+
+---
+
 ## 작성 규칙
 
 - 날짜별로 구분
