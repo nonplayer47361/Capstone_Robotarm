@@ -23,13 +23,12 @@ import numpy as np
 
 from .base import A4_W_MM, A4_H_MM, CORNERS_MM, BaseA4Detector, DetectResult
 from .aruco        import ArucoDetector
-from .checkerboard import CheckerboardDetector
 from .color_dot    import ColorDotDetector
 from .edge         import EdgeDetector
 from .grid         import GridDetector
 
 # 기본 우선순위: 정확도 높은 순
-DEFAULT_PRIORITY = ["aruco", "checkerboard", "color_dot", "edge", "grid"]
+DEFAULT_PRIORITY = ["aruco", "color_dot", "edge", "grid"]
 
 # vote_H 앙상블 기준점: A4 코너 4개 + 중앙점 (매 프레임 재생성 방지)
 _VOTE_REF_MM: np.ndarray = np.vstack(
@@ -39,7 +38,6 @@ _VOTE_REF_MM: np.ndarray = np.vstack(
 # 각 방법의 신뢰도 가중치 (앙상블 시 사용)
 _METHOD_WEIGHTS: dict[str, float] = {
     "aruco":        1.0,
-    "checkerboard": 0.95,
     "color_dot":    0.80,
     "edge":         0.60,
     "grid":         0.55,
@@ -47,7 +45,6 @@ _METHOD_WEIGHTS: dict[str, float] = {
 
 _ALL_DETECTORS: dict[str, type[BaseA4Detector]] = {
     "aruco":        ArucoDetector,
-    "checkerboard": CheckerboardDetector,
     "color_dot":    ColorDotDetector,
     "edge":         EdgeDetector,
     "grid":         GridDetector,

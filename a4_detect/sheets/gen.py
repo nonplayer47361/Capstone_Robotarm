@@ -8,7 +8,6 @@ sheets/gen.py — A4 탐지 방법별 테스트 시트 생성
   sheet_edge.png         — 외곽선 전용: 마커 없음, 테스트 포인트 5개
   sheet_aruco.png        — ArUco 코너 마커 × 4,   테스트 포인트 3개
   sheet_color_dot.png    — 색상 원 × 4,            테스트 포인트 3개
-  sheet_checkerboard.png — 체커보드 패턴,           테스트 포인트 3개
   sheet_grid.png         — 20mm 격자,              테스트 포인트 3개
 
   복합 방식 (테스트 포인트 1개, 캘리브레이션 조합별 4종)
@@ -59,7 +58,6 @@ if str(_ROOT) not in sys.path:
 
 from plane_coord import (
     ARUCO_CENTER_MM, ARUCO_DICT_ID,
-    CB_ORIGIN_MM, CHESSBOARD_COLS, CHESSBOARD_ROWS, SQUARE_MM,
     COLOR_POSITIONS_MM,
     GRID_SPACING_MM,
     A4_W_MM, A4_H_MM,
@@ -95,14 +93,6 @@ SINGLE_TEST_PTS: list[tuple[int, float, float]] = [
     (1,  52.5,  74.0),   # ① 좌상
     (2, 105.0, 148.5),   # ② 중앙
     (3, 157.5, 223.0),   # ③ 우하
-]
-
-# 체커보드 전용: 패턴 아래 영역에 포인트 3개
-# (패턴은 x=[0~180], y=[35~175] 범위 점유)
-CHECKER_TEST_PTS: list[tuple[int, float, float]] = [
-    (1,  40.0, 210.0),   # ① 좌 (40mm 원이 패턴을 가리지 않게 이격)
-    (2, 105.0, 245.0),   # ② 중앙 하단
-    (3, 170.0, 210.0),   # ③ 우 (40mm 원이 패턴을 가리지 않게 이격)
 ]
 
 # 복합 방식: 포인트 1개 (중앙)
@@ -438,26 +428,6 @@ def _draw_sheet_sequence(c: np.ndarray, seq: int, total: int | None = None) -> N
     cv2.putText(c, text, (x, y), font, scale, (40, 40, 40), thick)
 
 
-def _draw_checkerboard_pattern(c: np.ndarray, labels: bool = True) -> None:
-    sq = _px(SQUARE_MM)
-    total_cols = CHESSBOARD_COLS + 1
-    total_rows = CHESSBOARD_ROWS + 1
-    ox = _px(CB_ORIGIN_MM[0]) - sq
-    oy = _px(CB_ORIGIN_MM[1]) - sq
-
-    for r in range(total_rows):
-        for col in range(total_cols):
-            if (r + col) % 2 == 0:
-                x0, y0 = ox + col * sq, oy + r * sq
-                cv2.rectangle(c, (x0, y0), (x0 + sq, y0 + sq), (0, 0, 0), -1)
-
-    if labels:
-        cv2.circle(c, (_px(CB_ORIGIN_MM[0]), _px(CB_ORIGIN_MM[1])), _px(2.5), (0, 0, 200), -1)
-        cv2.putText(c, f"Inner[0,0]=({CB_ORIGIN_MM[0]:.0f},{CB_ORIGIN_MM[1]:.0f})",
-                    (_px(CB_ORIGIN_MM[0]) + _px(3), _px(CB_ORIGIN_MM[1]) - _px(2)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.34, (0, 0, 180), 1)
-
-
 def _draw_grid_detection_lines(c: np.ndarray, labels: bool = True) -> None:
     """격자 시트용 진한 격자선 (탐지 대상). _draw_grid 의 색상 프리셋."""
     _draw_grid(
@@ -548,26 +518,6 @@ def gen_color_dot_sheet(out_dir: Path) -> Path:
 # ═════════════════════════════════════════════════════════════════════════════
 # 4. 체커보드 시트 — 7×5 내부코너 / 20mm 칸, 테스트 포인트 3개 (패턴 아래)
 # ═════════════════════════════════════════════════════════════════════════════
-
-def gen_checkerboard_sheet(out_dir: Path) -> Path:
-    c = _blank()
-    _draw_top_indicator(c)
-
-    _draw_checkerboard_pattern(c)
-
-    # 테스트 포인트 3개 (패턴 아래 영역)
-    _draw_test_points(c, CHECKER_TEST_PTS)
-
-    _draw_title(c, f"CHECKERBOARD SHEET  ({CHESSBOARD_COLS}x{CHESSBOARD_ROWS} inner, {SQUARE_MM:.0f}mm)  —  test pts: 3")
-    _draw_footer(c,
-        f"Calibration: inner TL=({CB_ORIGIN_MM[0]:.0f},{CB_ORIGIN_MM[1]:.0f})mm  "
-        f"sq={SQUARE_MM:.0f}mm  |  Test pts below pattern  |  Print 100%")
-    _draw_border(c)
-
-    out = out_dir / "sheet_checkerboard.png"
-    _save(c, out)
-    return out
-
 
 # ═════════════════════════════════════════════════════════════════════════════
 # 5. 그리드 시트 — 20mm 격자, 테스트 포인트 3개
@@ -712,7 +662,7 @@ def gen_eval_sheet(out_dir: Path) -> Path:
 # 8. 좌표 오차 실험 시트 묶음 — 한 장당 테스트 포인트 1개
 # ═════════════════════════════════════════════════════════════════════════════
 
-ONE_POINT_METHODS = ["edge", "aruco", "color_dot", "checkerboard", "grid"]
+ONE_POINT_METHODS = ["edge", "aruco", "color_dot", "grid"]
 ONE_POINT_CHOICES = ONE_POINT_METHODS + ["composite"]
 
 
@@ -737,12 +687,6 @@ def _draw_method_base(c: np.ndarray, method: str, combo: dict | None = None) -> 
         _draw_top_indicator(c, text=False)
         _draw_border(c, thickness=3)
         return "ColorDot"
-
-    if method == "checkerboard":
-        _draw_checkerboard_pattern(c, labels=False)
-        _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
-        return "Checkerboard"
 
     if method == "grid":
         _draw_grid_detection_lines(c, labels=False)
@@ -780,9 +724,7 @@ def _point_name(pt: tuple[int, float, float]) -> str:
 
 
 def _one_point_pts_for_method(method: str) -> list[tuple[int, float, float]]:
-    # 체커보드는 패턴 위에 물체가 올라가면 A4 검출 자체를 가릴 수 있으므로
-    # 패턴 아래 안전 영역 포인트만 사용한다.
-    return CHECKER_TEST_PTS if method == "checkerboard" else QUICK_TEST_PTS
+    return QUICK_TEST_PTS
 
 
 def _selected_one_point_series(
@@ -791,7 +733,7 @@ def _selected_one_point_series(
 ) -> list[tuple[str, dict | None]]:
     if only and only not in ONE_POINT_CHOICES:
         raise ValueError(
-            "--one-point requires --only edge|aruco|color_dot|checkerboard|grid|composite"
+            "--one-point requires --only edge|aruco|color_dot|grid|composite"
         )
 
     methods = [only] if only else ONE_POINT_METHODS + ["composite"]
@@ -1000,7 +942,6 @@ _SINGLE_GENERATORS = {
     "edge":         gen_edge_sheet,
     "aruco":        gen_aruco_sheet,
     "color_dot":    gen_color_dot_sheet,
-    "checkerboard": gen_checkerboard_sheet,
     "grid":         gen_grid_sheet,
     "eval":         gen_eval_sheet,
 }
