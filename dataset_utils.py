@@ -1,0 +1,183 @@
+"""
+Shared helpers for YOLO dataset folders.
+
+All labelers and research scripts use the same train/val layout:
+
+  dataset/
+    train/images/
+    train/labels/
+    val/images/
+    val/labels/
+
+The split is deterministic from the image stem, so repeated runs and merged
+datasets keep each image in the same train/val split.
+"""
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+
+def get_split(stem: str, val_ratio: float = 0.2) -> str:
+    """Return the deterministic train/val split for an image stem."""
+    h = int(hashlib.md5(stem.encode("utf-8")).hexdigest(), 16)
+    return "val" if (h % 100) < int(val_ratio * 100) else "train"
+
+
+def ensure_yolo_dirs(dataset_dir: Path) -> None:
+    """Create the standard YOLO train/val image/label folders."""
+    for split in ("train", "val"):
+        (dataset_dir / split / "images").mkdir(parents=True, exist_ok=True)
+        (dataset_dir / split / "labels").mkdir(parents=True, exist_ok=True)
+
+
+def dataset_paths_for_split(stem: str, dataset_dir: Path, split: str) -> tuple[Path, Path]:
+    """Return image and label paths for a known split."""
+    img_path = dataset_dir / split / "images" / f"{stem}.jpg"
+    lbl_path = dataset_dir / split / "labels" / f"{stem}.txt"
+    return img_path, lbl_path
+
+
+def label_exists_in_dataset(stem: str, dataset_dir: Path) -> bool:
+    """Check both train and val folders for an existing label file."""
+    return any(dataset_paths_for_split(stem, dataset_dir, split)[1].exists() for split in ("train", "val"))
+
+
+def existing_label_path(stem: str, dataset_dir: Path, val_ratio: float = 0.2) -> Path | None:
+    """Find an existing label, preferring the current deterministic split."""
+    current_split = get_split(stem, val_ratio)
+    _, current_label = dataset_paths_for_split(stem, dataset_dir, current_split)
+    if current_label.exists():
+        return current_label
+    for split in ("train", "val"):
+        _, label_path = dataset_paths_for_split(stem, dataset_dir, split)
+        if label_path.exists():
+            return label_path
+    return None
+
+
+def save_labeled(
+    img: np.ndarray,
+    label_lines: list[str],
+    stem: str,
+    dataset_dir: Path,
+    val_ratio: float = 0.2,
+) -> tuple[str, Path, Path]:
+    """Save one image and its YOLO label lines into the dataset."""
+    split = get_split(stem, val_ratio)
+    ensure_yolo_dirs(dataset_dir)
+
+    img_path, lbl_path = dataset_paths_for_split(stem, dataset_dir, split)
+
+    # If the validation ratio changed, remove stale copies from the other split.
+    for other_split in ("train", "val"):
+        if other_split == split:
+            continue
+        old_img, old_lbl = dataset_paths_for_split(stem, dataset_dir, other_split)
+        for old_path in (old_img, old_lbl):
+            if old_path.exists():
+                old_path.unlink()
+
+    ok, enc = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    if not ok:
+        raise RuntimeError(f"Failed to encode image: {stem}")
+    enc.tofile(str(img_path))
+    lbl_path.write_text("\n".join(label_lines), encoding="utf-8")
+    return split, img_path, lbl_path
+
+
+def find_in_dataset(stem: str, dataset_dir: Path, val_ratio: float = 0.2) -> tuple[str, Path, Path]:
+    """Return split, image path, and label path for a stem."""
+    split = get_split(stem, val_ratio)
+    img_path = dataset_dir / split / "images" / f"{stem}.jpg"
+    lbl_path = dataset_dir / split / "labels" / f"{stem}.txt"
+    return split, img_path, lbl_path
+
+
+def load_label_from_dataset(
+    stem: str,
+    dataset_dir: Path,
+    img_w: int,
+    img_h: int,
+    val_ratio: float = 0.2,
+) -> list[tuple[int, int, int, int, int]]:
+    """Load YOLO labels as pixel boxes: [(cls, x1, y1, x2, y2), ...]."""
+    lbl_path = existing_label_path(stem, dataset_dir, val_ratio)
+    if not lbl_path:
+        return []
+    boxes: list[tuple[int, int, int, int, int]] = []
+    for line in lbl_path.read_text(encoding="utf-8").strip().splitlines():
+        parts = line.split()
+        if len(parts) != 5:
+            continue
+        try:
+            cls = int(parts[0])
+            cx, cy, bw, bh = [float(v) for v in parts[1:]]
+        except ValueError:
+            continue
+        x1 = max(0, min(img_w - 1, int((cx - bw / 2) * img_w)))
+        y1 = max(0, min(img_h - 1, int((cy - bh / 2) * img_h)))
+        x2 = max(0, min(img_w - 1, int((cx + bw / 2) * img_w)))
+        y2 = max(0, min(img_h - 1, int((cy + bh / 2) * img_h)))
+        if x2 > x1 and y2 > y1:
+            boxes.append((cls, x1, y1, x2, y2))
+    return boxes
+
+
+def create_yaml(dataset_dir: Path, nc: int, names: list[str]) -> Path:
+    """Create or update a YOLO dataset.yaml file."""
+    yaml_path = dataset_dir / "dataset.yaml"
+    names_block = "\n".join(f"  {i}: {n}" for i, n in enumerate(names))
+    yaml_path.write_text(
+        "# Auto-generated by labeling_tools\n"
+        "path: .\n"
+        "train: train/images\n"
+        "val: val/images\n\n"
+        f"nc: {nc}\n"
+        f"names:\n{names_block}\n",
+        encoding="utf-8",
+    )
+    return yaml_path
+
+
+def dataset_stats(dataset_dir: Path) -> dict[str, dict[str, int]]:
+    """Count images, label files, and empty label files for train/val."""
+    result: dict[str, dict[str, int]] = {}
+    for split in ("train", "val"):
+        img_dir = dataset_dir / split / "images"
+        lbl_dir = dataset_dir / split / "labels"
+        n_img = sum(1 for p in img_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS) if img_dir.exists() else 0
+        label_paths = list(lbl_dir.glob("*.txt")) if lbl_dir.exists() else []
+        n_lbl = len(label_paths)
+        n_empty = sum(1 for p in label_paths if p.stat().st_size == 0)
+        result[split] = {"images": n_img, "labels": n_lbl, "empty_labels": n_empty}
+    return result
+
+
+def print_stats(dataset_dir: Path) -> None:
+    """Print a compact dataset summary."""
+    stats = dataset_stats(dataset_dir)
+    train = stats.get("train", {})
+    val = stats.get("val", {})
+    total = train.get("images", 0) + val.get("images", 0)
+    print("\n  " + "=" * 44)
+    print(f"  dataset: {dataset_dir.resolve()}")
+    print("  " + "=" * 44)
+    print(
+        f"  train  images={train.get('images', 0):4d}  "
+        f"labels={train.get('labels', 0):4d}  empty={train.get('empty_labels', 0):4d}"
+    )
+    print(
+        f"  val    images={val.get('images', 0):4d}  "
+        f"labels={val.get('labels', 0):4d}  empty={val.get('empty_labels', 0):4d}"
+    )
+    print(f"  total  images={total:4d}")
+    yaml_path = dataset_dir / "dataset.yaml"
+    if yaml_path.exists():
+        print(f"  yaml   {yaml_path}")
+    print("  " + "=" * 44 + "\n")

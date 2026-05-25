@@ -1,0 +1,22 @@
+# Labeling tools dependencies.
+# Install manually with:
+#   python -m pip install -r requirements.txt
+
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=9.0.0
+pillow-heif>=0.13.0
+
+# Needed for research_pipeline.py auto-labeling and YOLO training.
+# Installing ultralytics also installs a compatible torch package in most cases.
+ultralytics>=8.0.0
+
+# Needed for prepare_openset.py (Roboflow API 다운로드).
+# ZIP 수동 다운로드 방식에서는 불필요.
+roboflow>=1.1.0
+
+# Needed for prepare_openset.py OIV7 프리셋 (oiv7_bottle_cap, oiv7_coin).
+# Roboflow 프리셋이나 ZIP 모드에서는 불필요.
+# PREPARE_OPENSET.bat 이 OIV7 선택 시 자동 설치.
+# 수동: pip install fiftyone
+# fiftyone>=0.23.0

@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLO 라벨링 도구 — 기획서 & UI 설계</title>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --card:     #22263a;
+    --border:   #2e3347;
+    --accent:   #4f8ef7;
+    --green:    #3ecf6e;
+    --yellow:   #f5c842;
+    --red:      #e05c5c;
+    --purple:   #a66ff7;
+    --text:     #e8ecf4;
+    --sub:      #8892aa;
+    --radius:   10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    background: linear-gradient(135deg, #1a1d27 0%, #12162a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 48px 28px;
+  }
+  header h1 { font-size: 28px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  header p  { color: var(--sub); font-size: 14px; }
+  .badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 20px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  /* ── 내비게이션 ── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    display: flex;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  nav a {
+    color: var(--sub);
+    text-decoration: none;
+    padding: 14px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all .2s;
+  }
+  nav a:hover  { color: var(--text); }
+  nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── 레이아웃 ── */
+  main { max-width: 1100px; margin: 0 auto; padding: 40px 32px 80px; }
+  section { margin-bottom: 60px; scroll-margin-top: 72px; }
+  h2 {
+    font-size: 22px; font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 17px; font-weight: 600; margin: 24px 0 10px; color: var(--text); }
+  p  { color: var(--sub); margin-bottom: 12px; }
+  ul { padding-left: 20px; }
+  li { color: var(--sub); margin-bottom: 6px; }
+  li strong { color: var(--text); }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+
+  /* ── 그리드 ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* ── 파이프라인 ── */
+  .pipeline {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .phase {
+    flex: 1;
+    min-width: 160px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 16px 14px;
+    position: relative;
+    text-align: center;
+  }
+  .phase:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .phase:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+  .phase + .phase { border-left: none; }
+  .phase .num {
+    display: inline-block;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    line-height: 28px;
+    font-weight: 700; font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .phase .title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .phase .desc  { font-size: 11px; color: var(--sub); margin-top: 4px; }
+  .ph-blue   { background: #1a3a6a; }
+  .ph-green  { background: #1a4a30; }
+  .ph-yellow { background: #4a3a0a; }
+  .ph-purple { background: #32194a; }
+
+  /* ── UI 와이어프레임 ── */
+  .wireframe {
+    background: #1a1d27;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    padding: 0;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .wf-title {
+    background: #12162a;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--sub);
+    border-bottom: 1px solid var(--border);
+  }
+  .wf-hud {
+    background: #161921;
+    padding: 10px 16px;
+    border-bottom: 2px solid #2a2e40;
+  }
+  .wf-img {
+    background: #222539;
+    padding: 6px 16px;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .wf-img-inner {
+    background: #2d3148;
+    border: 1px dashed #454a65;
+    padding: 20px 60px;
+    border-radius: 4px;
+    color: var(--sub);
+    font-size: 11px;
+    text-align: center;
+  }
+  .wf-btns {
+    background: #161921;
+    padding: 10px 16px;
+    border-top: 2px solid #2a2e40;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .wf-btn {
+    background: #2a2e40;
+    border: 1px solid #454a65;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--sub);
+  }
+  .wf-btn.green  { background: #1a4228; border-color: #2a6040; color: #3ecf6e; }
+  .wf-btn.yellow { background: #3a3010; border-color: #6a5010; color: #f5c842; }
+  .wf-btn.red    { background: #3a1818; border-color: #6a2828; color: #e05c5c; }
+  .wf-progress {
+    height: 4px;
+    background: #2a2e40;
+    border-radius: 2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .wf-progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 2px;
+    width: 60%;
+  }
+  .wf-hud-row1 { color: var(--text); font-size: 12px; margin-bottom: 4px; }
+  .wf-hud-row2 { color: #555e7a; font-size: 11px; }
+  .tag {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .tag-auto   { background: #003a4a; color: #00d2ff; }
+  .tag-manual { background: #003a10; color: #3ecf6e; }
+  .tag-warn   { background: #4a1010; color: #f07070; }
+  .tag-val    { background: #3a2800; color: var(--yellow); }
+  .tag-train  { background: #002020; color: #40d0c0; }
+
+  /* ── 키보드 단축키 테이블 ── */
+  .key-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .key-table th {
+    background: #1a1d27;
+    color: var(--sub);
+    font-size: 12px;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .key-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .key-table tr:last-child td { border-bottom: none; }
+  kbd {
+    display: inline-block;
+    background: #2a2e40;
+    border: 1px solid #454a65;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  /* ── 흐름도 ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .flow-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    min-width: 160px;
+    text-align: center;
+  }
+  .flow-arrow { color: var(--sub); font-size: 18px; }
+  .flow-cond {
+    background: #3a2800;
+    border: 1px solid #6a5010;
+    color: var(--yellow);
+  }
+  .flow-ok   { background: #003a10; border-color: #2a6040; color: var(--green); }
+  .flow-warn { background: #4a1010; border-color: #6a2828; color: #e05c5c; }
+
+  /* ── 상태 배지 ── */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .st-done  { background: #003a10; color: var(--green);  }
+  .st-done  .dot { background: var(--green); }
+  .st-doing { background: #1a3a6a; color: var(--accent); }
+  .st-doing .dot { background: var(--accent); animation: pulse .8s infinite; }
+  .st-todo  { background: #2a2a3a; color: var(--sub); }
+  .st-todo  .dot { background: var(--sub); }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .3; }
+  }
+
+  /* ── 코드블록 ── */
+  pre {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+  code { color: #7dd3fc; }
+
+  /* ── 경고/팁 박스 ── */
+  .tip  { background: #062a1e; border-left: 3px solid var(--green);  padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+  .warn { background: #2a1010; border-left: 3px solid var(--red);    padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+  .info { background: #06182a; border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+  .tip p, .warn p, .info p { margin: 0; font-size: 13px; }
+
+  /* ── 비교 테이블 ── */
+  .cmp { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .cmp th { background: #1a1d27; padding: 10px 14px; color: var(--sub); font-size: 12px; text-align: center; border: 1px solid var(--border); }
+  .cmp td { padding: 9px 14px; border: 1px solid var(--border); font-size: 13px; text-align: center; }
+  .cmp .label { text-align: left; font-weight: 600; color: var(--text); }
+  .cmp .yes  { color: var(--green); }
+  .cmp .no   { color: var(--red); }
+  .cmp .part { color: var(--yellow); }
+
+  /* ── 파일 트리 ── */
+  .tree {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .tree .dir  { color: var(--accent); }
+  .tree .file { color: var(--sub); }
+  .tree .note { color: #455; }
+
+  footer {
+    text-align: center;
+    color: var(--sub);
+    font-size: 12px;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    margin-top: 60px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>YOLO 라벨링 도구 기획서 <span class="badge">v1.3</span></h1>
+  <p>로봇팔 음식 피딩 프로젝트 — 팀 협업 라벨링 시스템 설계 문서 &nbsp;|&nbsp; 2026-05-20</p>
+</header>
+
+<nav>
+  <a href="#overview"   class="active">개요</a>
+  <a href="#tools">도구 구성</a>
+  <a href="#ui">UI 설계</a>
+  <a href="#workflow">작업 흐름</a>
+  <a href="#team">팀 협업</a>
+  <a href="#dataset">데이터셋 구조</a>
+  <a href="#keys">조작 키</a>
+  <a href="#roadmap">개선 로드맵</a>
+</nav>
+
+<main>
+
+<!-- ── 1. 개요 ── -->
+<section id="overview">
+  <h2>1. 프로젝트 개요</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h4>목표</h4>
+      <p>로봇팔이 딸기·블루베리·클레이 구형 모형 등 음식을 인식해 피딩하는 기능을 위한
+         YOLO 학습용 데이터셋을 팀원이 나눠 효율적으로 수집·라벨링합니다.</p>
+    </div>
+    <div class="card">
+      <h4>현재 클래스</h4>
+      <ul>
+        <li><strong>0 — clay_ball</strong>: 보라색 구형 클레이 (블루베리 대용 모형)</li>
+        <li><strong>1 — blueberry</strong>: 실제 블루베리 사진</li>
+        <li><strong>2 — strawberry</strong>: 딸기</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>전체 파이프라인</h3>
+  <div class="pipeline">
+    <div class="phase">
+      <div class="num ph-blue" style="color:#7dd3fc">1</div>
+      <div class="title">촬영</div>
+      <div class="desc">collect_webcam.py<br>웹캠 이미지 수집</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-green" style="color:#3ecf6e">2</div>
+      <div class="title">수동 라벨링</div>
+      <div class="desc">label_clay_ball.py<br>annotate_simple.py</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-yellow" style="color:#f5c842">3</div>
+      <div class="title">반지도 학습</div>
+      <div class="desc">semi_label.py<br>150장 → 나머지 자동</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-purple" style="color:#c084fc">4</div>
+      <div class="title">병합 & 학습</div>
+      <div class="desc">merge_datasets.py<br>→ YOLO 학습</div>
+    </div>
+  </div>
+
+  <h3>진행 상태</h3>
+  <div class="grid-3">
+    <span class="status st-done"><span class="dot"></span>4폴더 구조 자동저장</span>
+    <span class="status st-done"><span class="dot"></span>팀 병합 도구</span>
+    <span class="status st-done"><span class="dot"></span>Letterbox UI</span>
+    <span class="status st-done"><span class="dot"></span>진행 바 / 자동스킵</span>
+    <span class="status st-doing"><span class="dot"></span>반지도 학습 테스트</span>
+    <span class="status st-todo"><span class="dot"></span>실제 촬영 데이터 수집</span>
+  </div>
+</section>
+
+<!-- ── 2. 도구 구성 ── -->
+<section id="tools">
+  <h2>2. 도구 구성</h2>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>📷 collect_webcam.py</h4>
+      <p>웹캠으로 학습용 원본 이미지를 수집합니다. 저장 전 라벨링 단계이므로 raw 폴더에 저장합니다.</p>
+      <ul>
+        <li><strong>--prefix</strong>: 팀원마다 다른 접두사 → 파일명 충돌 방지</li>
+        <li><strong>--count N</strong>: N장 달성 시 자동 종료</li>
+        <li>한글 경로 완전 지원 (imencode + tofile)</li>
+      </ul>
+      <pre><code>python collect_webcam.py --class-name clay_ball --prefix alice --count 200</code></pre>
+    </div>
+
+    <div class="card">
+      <h4>🔵 label_clay_ball.py</h4>
+      <p>보라색 구형 클레이 전용 라벨러. HSV 색상 범위로 BBox를 자동 제안합니다.</p>
+      <ul>
+        <li><strong>AUTO 탐지</strong>: HSV 마스크 → 최대 컨투어 BBox</li>
+        <li><strong>수동 보완</strong>: 드래그로 BBox 직접 그리기</li>
+        <li><strong>n 키</strong>: 네거티브 예시 저장 (빈 라벨)</li>
+        <li><strong>--range</strong>: 팀원 담당 인덱스 범위 분할</li>
+      </ul>
+      <pre><code>python label_clay_ball.py --images raw/clay_ball --range 0 249</code></pre>
+    </div>
+
+    <div class="card">
+      <h4>🏷️ annotate_simple.py</h4>
+      <p>여러 클래스를 동시에 라벨링하는 범용 어노테이터. 클래스 패널이 이미지 오른쪽에 표시됩니다.</p>
+      <ul>
+        <li><strong>다중 클래스</strong>: 0~9 키로 전환</li>
+        <li><strong>--lock-class</strong>: 단일 클래스 고정 (실수 방지)</li>
+        <li><strong>--range</strong>: 팀원 담당 범위</li>
+      </ul>
+      <pre><code>python annotate_simple.py --images raw/strawberry --classes strawberry blueberry</code></pre>
+    </div>
+
+    <div class="card">
+      <h4>⚡ semi_label.py</h4>
+      <p>500장 중 150장만 수동으로 라벨링하고 나머지를 YOLO 모델로 자동 라벨링합니다.</p>
+      <ul>
+        <li><strong>Phase 1</strong>: 150장 수동 라벨링</li>
+        <li><strong>Phase 2</strong>: YOLO 빠른 학습 (~20분)</li>
+        <li><strong>Phase 3</strong>: 나머지 자동 라벨 (conf 임계값)</li>
+        <li><strong>Phase 4</strong>: 검토 큐 확인/수정</li>
+      </ul>
+      <pre><code>python semi_label.py --images raw/clay_ball --all --manual-count 150</code></pre>
+    </div>
+
+    <div class="card">
+      <h4>🔀 merge_datasets.py</h4>
+      <p>여러 팀원의 라벨링 결과를 하나의 YOLO 4폴더 데이터셋으로 병합합니다.</p>
+      <ul>
+        <li><strong>3가지 입력 구조</strong> 자동 인식 (4폴더/2폴더/평면)</li>
+        <li><strong>충돌 해결</strong>: keep-first / keep-last / most-boxes / interactive</li>
+        <li><strong>--dry-run</strong>: 실제 복사 없이 미리보기</li>
+        <li>MD5 기반 결정론적 train/val 분할 유지</li>
+      </ul>
+      <pre><code>python merge_datasets.py --inputs alice/dataset bob/dataset --output merged</code></pre>
+    </div>
+
+    <div class="card">
+      <h4>🛠️ dataset_utils.py</h4>
+      <p>모든 도구가 공유하는 공통 유틸리티 모듈. 직접 실행 불필요.</p>
+      <ul>
+        <li><code>get_split()</code>: MD5 해시 기반 결정론적 train/val 분할</li>
+        <li><code>save_labeled()</code>: 4폴더 구조로 이미지+라벨 저장</li>
+        <li><code>create_yaml()</code>: dataset.yaml 자동 생성</li>
+        <li><code>print_stats()</code>: 데이터셋 통계 출력</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── 3. UI 설계 ── -->
+<section id="ui">
+  <h2>3. UI 설계</h2>
+
+  <h3>3-1. Clay Ball Labeler UI 구조</h3>
+  <div class="wireframe">
+    <div class="wf-title">Clay Ball Labeler — 창 레이아웃 (1280 × 760)</div>
+    <div class="wf-hud">
+      <div class="wf-progress"><div class="wf-progress-fill"></div></div>
+      <div class="wf-hud-row1">
+        [31/50] &nbsp; clay_ball_00030.jpg &nbsp; | &nbsp; 완료=30장 (60%)
+        <span class="tag tag-auto">AUTO 탐지됨</span>
+      </div>
+      <div class="wf-hud-row2">
+        Enter/s=저장 &nbsp; n=빈라벨 &nbsp; r=거부 &nbsp; a=재탐지 &nbsp; d=삭제 &nbsp; z=초기화 &nbsp; p=이전 &nbsp; q=종료
+      </div>
+    </div>
+    <div class="wf-img">
+      <div style="position:absolute;left:0;top:0;right:0;bottom:0;background:#1a1d27;opacity:.4;"></div>
+      <div class="wf-img-inner">
+        이미지 (Letterbox 비율 유지)<br>
+        <span style="color:#555e7a;font-size:10px">창 크기 변경 시 비율 자동 유지 · 드래그로 BBox 그리기</span>
+        <div style="margin-top:12px;border:2px solid #00d2ff;padding:4px 8px;display:inline-block;border-radius:3px;font-size:10px;color:#00d2ff;">
+          AUTO BBox (황색)
+        </div>
+      </div>
+    </div>
+    <div class="wf-btns">
+      <span class="wf-btn">&lt; Prev</span>
+      <span class="wf-btn green">Save+Next</span>
+      <span class="wf-btn yellow">Empty/Neg</span>
+      <span class="wf-btn">Manual</span>
+      <span class="wf-btn">Auto</span>
+      <span class="wf-btn">Undo</span>
+      <span class="wf-btn">Clear</span>
+      <span class="wf-btn red">Quit</span>
+    </div>
+  </div>
+
+  <h3>3-2. Annotator UI 구조 (다중 클래스)</h3>
+  <div class="wireframe">
+    <div class="wf-title">Annotator — 창 레이아웃 (1280 × 760)</div>
+    <div class="wf-hud">
+      <div class="wf-progress"><div class="wf-progress-fill" style="width:40%"></div></div>
+      <div class="wf-hud-row1">
+        [21/50] &nbsp; strawberry_00020.jpg &nbsp; | &nbsp; 완료=20장 (40%) &nbsp; class[0]=strawberry &nbsp; boxes=2
+      </div>
+      <div class="wf-hud-row2">
+        drag=draw &nbsp; 0-9=class &nbsp; s=save &nbsp; n=empty &nbsp; d=del &nbsp; z=clear &nbsp; p=prev &nbsp; q=quit
+      </div>
+    </div>
+    <div class="wf-img" style="justify-content:flex-start;">
+      <div style="position:absolute;left:0;top:0;right:0;bottom:0;background:#1a1d27;opacity:.4;"></div>
+      <div class="wf-img-inner" style="flex:1;margin-right:8px;">
+        이미지 (Letterbox 비율 유지)<br>
+        <span style="color:#555e7a;font-size:10px">BBox + 클래스 레이블 표시</span>
+      </div>
+      <div style="background:#111520;border:1px solid #2e3347;border-radius:4px;padding:8px 10px;font-size:11px;min-width:130px;position:relative;z-index:1;">
+        <div style="color:#3ecf6e;margin-bottom:4px;">▶ 0:strawberry</div>
+        <div style="color:#5e5e7a;">  1:blueberry</div>
+        <div style="color:#5e5e7a;">  2:clay_ball</div>
+      </div>
+    </div>
+    <div class="wf-btns">
+      <span class="wf-btn">&lt; Prev</span>
+      <span class="wf-btn green">Save+Next</span>
+      <span class="wf-btn yellow">Empty/Neg</span>
+      <span class="wf-btn">Undo</span>
+      <span class="wf-btn">Clear</span>
+      <span class="wf-btn red">Quit</span>
+    </div>
+  </div>
+
+  <h3>3-3. 비율 유지 (Letterbox) 원리</h3>
+  <div class="info"><p>
+    <strong>핵심 원리</strong>: 매 프레임 <code>cv2.getWindowImageRect()</code>로 현재 창 크기를 읽어
+    이미지 영역 크기를 계산합니다. <code>scale = min(ia_w / iw, ia_h / ih)</code>로 비율을 유지하며
+    축소/확대 후 남는 공간을 어두운 배경으로 채웁니다.
+    마우스 좌표는 <code>img_x = (canvas_x - off_x) / scale</code>로 이미지 좌표로 변환하므로
+    창을 어떻게 크기 조절해도 BBox 위치가 정확합니다.
+  </p></div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>구 방식 (문제)</h4>
+      <ul>
+        <li>HUD 텍스트가 이미지 위에 직접 그려져 가림</li>
+        <li>창 크기 조정 시 이미지 늘어남 (비율 파괴)</li>
+        <li>버튼 클릭 영역이 이미지 좌표계 기준 → 창 크기 달라지면 오프셋 오류</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>신 방식 (개선)</h4>
+      <ul>
+        <li>HUD(상단 88px) + 이미지(Letterbox) + 버튼 바(하단 52px) 완전 분리</li>
+        <li>창 크기 = 캔버스 크기 → 스트레칭 제로</li>
+        <li>모든 좌표 변환을 <code>_to_img()</code> 한 곳에서 처리</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>3-4. 도구별 기능 비교</h3>
+  <table class="cmp">
+    <thead>
+      <tr>
+        <th class="label">기능</th>
+        <th>collect_webcam</th>
+        <th>label_clay_ball</th>
+        <th>annotate_simple</th>
+        <th>semi_label</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="label">Letterbox UI</td><td>—</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      <tr><td class="label">버튼 바</td><td>—</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      <tr><td class="label">진행 바</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      <tr><td class="label">자동 시작 위치</td><td>—</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      <tr><td class="label">HSV 자동 탐지</td><td>—</td><td class="yes">✓</td><td class="no">—</td><td class="yes">✓</td></tr>
+      <tr><td class="label">다중 클래스</td><td>—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+      <tr><td class="label">빈 라벨 (n키)</td><td>—</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+      <tr><td class="label">--range 분담</td><td>—</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td></tr>
+      <tr><td class="label">--prefix 충돌방지</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+      <tr><td class="label">--count 목표장수</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+      <tr><td class="label">한글 경로 지원</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 4. 작업 흐름 ── -->
+<section id="workflow">
+  <h2>4. 작업 흐름</h2>
+
+  <h3>4-1. 수동 라벨링 흐름 (label_clay_ball / annotate_simple)</h3>
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-box">이미지 로드</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-cond">기존 라벨 있음?</div>
+      <span class="flow-arrow">→ 있음</span>
+      <div class="flow-box">박스 불러오기<br>표시</div>
+    </div>
+    <div class="flow-row" style="padding-left:200px">
+      <span class="flow-arrow">↓ 없음</span>
+    </div>
+    <div class="flow-row" style="padding-left:190px">
+      <div class="flow-box flow-ok">HSV 자동 탐지<br>(clay_ball만)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box">Enter / 드래그<br>BBox 확정</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-ok">4폴더 저장<br>다음 이미지</div>
+    </div>
+  </div>
+
+  <h3>4-2. 반지도 학습 흐름 (semi_label)</h3>
+  <div class="pipeline">
+    <div class="phase">
+      <div class="num ph-blue" style="color:#7dd3fc">P1</div>
+      <div class="title">Manual</div>
+      <div class="desc">150장 수동 라벨링<br>annotate_simple과 동일 UI</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-green" style="color:#3ecf6e">P2</div>
+      <div class="title">Train</div>
+      <div class="desc">YOLOv8 빠른 학습<br>~20분 (GPU 없어도 가능)</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-yellow" style="color:#f5c842">P3</div>
+      <div class="title">Auto Label</div>
+      <div class="desc">conf≥0.70 → 자동저장<br>0.45~0.70 → 검토큐</div>
+    </div>
+    <div class="phase">
+      <div class="num ph-purple" style="color:#c084fc">P4</div>
+      <div class="title">Review</div>
+      <div class="desc">검토큐 이미지<br>수락/수정/삭제</div>
+    </div>
+  </div>
+
+  <div class="tip"><p>
+    <strong>팁:</strong> Phase 2 학습에는 <code>pip install ultralytics</code>가 필요합니다.
+    Phase 1~4는 중간에 종료해도 상태가 JSON으로 저장되므로 언제든 재개할 수 있습니다.
+  </p></div>
+
+  <h3>4-3. 병합 흐름 (merge_datasets)</h3>
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-box">팀원 A 데이터셋</div>
+      <span class="flow-arrow">↘</span>
+    </div>
+    <div class="flow-row" style="margin-top:-8px">
+      <div class="flow-box">팀원 B 데이터셋</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-cond">merge_datasets.py</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-ok">YOLO 4폴더<br>merged_dataset/</div>
+    </div>
+    <div class="flow-row" style="margin-top:-8px;padding-left:40px;">
+      <div class="flow-box">팀원 C 데이터셋</div>
+      <span class="flow-arrow">↗</span>
+    </div>
+  </div>
+  <div class="info"><p>
+    같은 이미지가 여러 팀원에게 있을 때 <strong>충돌(conflict)</strong>이 발생합니다.
+    기본 전략은 <code>keep-first</code>이지만,
+    <code>--conflict interactive</code>로 OpenCV 창에서 직접 선택할 수 있습니다.
+  </p></div>
+</section>
+
+<!-- ── 5. 팀 협업 ── -->
+<section id="team">
+  <h2>5. 팀 협업 방법</h2>
+
+  <h3>방법 A — --range로 인덱스 분할 (권장)</h3>
+  <div class="card">
+    <h4>같은 원본 폴더, 인덱스만 나눔</h4>
+    <pre><code># 팀원 A: 0~249번 담당
+python label_clay_ball.py --images raw/clay_ball --range 0 249 --dataset-dir alice/dataset
+
+# 팀원 B: 250~499번 담당
+python label_clay_ball.py --images raw/clay_ball --range 250 499 --dataset-dir bob/dataset
+
+# 병합
+python merge_datasets.py --inputs alice/dataset bob/dataset --output merged_dataset</code></pre>
+    <p>MD5 해시 기반 분할이므로 같은 이미지는 항상 같은 split(train/val)에 배정됩니다.</p>
+  </div>
+
+  <h3>방법 B — 파일명 접두사 분할 (촬영 단계)</h3>
+  <div class="card">
+    <h4>각자 다른 접두사로 촬영 → 병합 시 충돌 없음</h4>
+    <pre><code># 팀원 A
+python collect_webcam.py --class-name clay_ball --prefix alice --count 250
+
+# 팀원 B
+python collect_webcam.py --class-name clay_ball --prefix bob --count 250
+
+# 저장 파일명: alice_clay_ball_00000.jpg, bob_clay_ball_00000.jpg (충돌 없음)</code></pre>
+  </div>
+
+  <h3>주의사항</h3>
+  <div class="warn"><p>
+    <strong>--val-ratio</strong>는 팀원 모두 동일한 값을 사용해야 합니다 (기본 0.2).
+    서로 다른 val-ratio를 쓰면 같은 이미지가 팀원마다 다른 split에 들어가
+    병합 후 train/val 오염이 발생합니다.
+  </p></div>
+</section>
+
+<!-- ── 6. 데이터셋 구조 ── -->
+<section id="dataset">
+  <h2>6. 데이터셋 구조</h2>
+
+  <h3>6-1. YOLO 표준 4폴더 구조</h3>
+  <div class="tree">
+    <span class="dir">dataset/</span><br>
+    ├── <span class="dir">train/</span><br>
+    │   ├── <span class="dir">images/</span> &nbsp; <span class="note">← 학습용 이미지 (~80%)</span><br>
+    │   └── <span class="dir">labels/</span> &nbsp; <span class="note">← 학습용 라벨 txt (~80%)</span><br>
+    ├── <span class="dir">val/</span><br>
+    │   ├── <span class="dir">images/</span> &nbsp; <span class="note">← 검증용 이미지 (~20%)</span><br>
+    │   └── <span class="dir">labels/</span> &nbsp; <span class="note">← 검증용 라벨 txt (~20%)</span><br>
+    └── <span class="file">dataset.yaml</span> &nbsp; <span class="note">← 자동 생성</span>
+  </div>
+
+  <h3>6-2. YOLO 라벨 형식</h3>
+  <pre><code># 형식: class_id  cx  cy  width  height  (모두 0~1 정규화)
+0 0.512000 0.438000 0.124000 0.156000
+1 0.720000 0.310000 0.088000 0.095000</code></pre>
+
+  <h3>6-3. 결정론적 train/val 분할</h3>
+  <div class="card">
+    <h4>MD5 해시 기반 분할 원리</h4>
+    <pre><code>def get_split(stem: str, val_ratio: float = 0.2) -> str:
+    h = int(hashlib.md5(stem.encode("utf-8")).hexdigest(), 16)
+    return "val" if (h % 100) &lt; int(val_ratio * 100) else "train"</code></pre>
+    <p>파일명이 같으면 누가 언제 라벨링하든 항상 같은 split에 배정됩니다.
+       팀원 여러 명이 같은 이미지를 라벨링해도 병합 후 오염이 없습니다.</p>
+  </div>
+
+  <h3>6-4. dataset.yaml 예시</h3>
+  <pre><code># Auto-generated by labeling_tools
+path: C:/Users/user/project/dataset
+train: train/images
+val:   val/images
+
+nc: 3
+names:
+  0: clay_ball
+  1: blueberry
+  2: strawberry</code></pre>
+</section>
+
+<!-- ── 7. 조작 키 ── -->
+<section id="keys">
+  <h2>7. 조작 키 참조</h2>
+
+  <div class="grid-2">
+    <div>
+      <h3>label_clay_ball.py</h3>
+      <table class="key-table">
+        <thead><tr><th>키</th><th>동작</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>드래그</kbd></td><td>수동 BBox 그리기</td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>s</kbd></td><td>BBox 저장 후 다음 이미지</td></tr>
+          <tr><td><kbd>n</kbd></td><td>빈 라벨 저장 + 다음 (네거티브 예시)</td></tr>
+          <tr><td><kbd>r</kbd></td><td>자동 탐지 거부 → 수동 모드</td></tr>
+          <tr><td><kbd>a</kbd></td><td>자동 탐지 재실행</td></tr>
+          <tr><td><kbd>d</kbd></td><td>마지막 BBox 삭제</td></tr>
+          <tr><td><kbd>z</kbd></td><td>전체 초기화 + 재탐지</td></tr>
+          <tr><td><kbd>p</kbd></td><td>이전 이미지</td></tr>
+          <tr><td><kbd>q</kbd></td><td>종료</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>annotate_simple.py</h3>
+      <table class="key-table">
+        <thead><tr><th>키</th><th>동작</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>드래그</kbd></td><td>BBox 그리기</td></tr>
+          <tr><td><kbd>0</kbd>~<kbd>9</kbd></td><td>클래스 선택</td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>s</kbd></td><td>저장 후 다음 이미지</td></tr>
+          <tr><td><kbd>n</kbd></td><td>빈 라벨 저장 + 다음</td></tr>
+          <tr><td><kbd>d</kbd></td><td>마지막 BBox 삭제</td></tr>
+          <tr><td><kbd>z</kbd></td><td>전체 초기화</td></tr>
+          <tr><td><kbd>p</kbd></td><td>이전 이미지</td></tr>
+          <tr><td><kbd>q</kbd></td><td>종료</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>공통 버튼 바</h3>
+  <div class="wf-btns" style="background:#161921;border:1px solid #2e3347;border-radius:8px;padding:12px 16px;margin-top:12px;">
+    <span class="wf-btn">&lt; Prev</span>
+    <span class="wf-btn green">Save+Next</span>
+    <span class="wf-btn yellow">Empty/Neg</span>
+    <span class="wf-btn">Manual / Undo</span>
+    <span class="wf-btn">Auto / Clear</span>
+    <span class="wf-btn">Undo / Clear</span>
+    <span class="wf-btn red">Quit</span>
+  </div>
+</section>
+
+<!-- ── 8. 개선 로드맵 ── -->
+<section id="roadmap">
+  <h2>8. 개선 로드맵</h2>
+
+  <div class="grid-2">
+    <div>
+      <h3>완료된 항목</h3>
+      <div class="card">
+        <ul>
+          <li><strong>[완료]</strong> YOLO 4폴더 구조 자동 저장</li>
+          <li><strong>[완료]</strong> MD5 결정론적 train/val 분할</li>
+          <li><strong>[완료]</strong> 팀원 병합 도구 (merge_datasets)</li>
+          <li><strong>[완료]</strong> Letterbox UI + 비율 유지</li>
+          <li><strong>[완료]</strong> HUD/버튼 바 분리</li>
+          <li><strong>[완료]</strong> 마우스 좌표 정확 매핑</li>
+          <li><strong>[완료]</strong> 자동 시작 위치 (미완료 첫 이미지)</li>
+          <li><strong>[완료]</strong> n키 네거티브 예시 저장</li>
+          <li><strong>[완료]</strong> --range 팀 분담</li>
+          <li><strong>[완료]</strong> --prefix 파일명 충돌 방지</li>
+          <li><strong>[완료]</strong> 한글 경로 완전 지원</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <h3>향후 개선 후보</h3>
+      <div class="card">
+        <ul>
+          <li><strong>[후보]</strong> BBox 드래그 수정 기능 (기존 박스 이동/크기 조절)</li>
+          <li><strong>[후보]</strong> 마우스 오른쪽 클릭으로 BBox 선택 후 삭제</li>
+          <li><strong>[후보]</strong> 확대/축소 (휠 스크롤 zoom)</li>
+          <li><strong>[후보]</strong> 실행취소/다시실행 스택 (Ctrl+Z / Ctrl+Y)</li>
+          <li><strong>[후보]</strong> 자동 탐지 HSV 실시간 조정 트랙바</li>
+          <li><strong>[후보]</strong> 세션 저장 — 중단 후 이어서 (last_idx 기억)</li>
+          <li><strong>[후보]</strong> 이미지 필터링 — 완료/미완료만 보기</li>
+          <li><strong>[후보]</strong> 통계 대시보드 화면 (d 키)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>데이터 수집 목표</h3>
+  <table class="cmp">
+    <thead>
+      <tr>
+        <th class="label">클래스</th>
+        <th>목표 장수</th>
+        <th>수동 라벨</th>
+        <th>자동 라벨</th>
+        <th>현재 상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label">clay_ball</td>
+        <td>500</td>
+        <td>150</td>
+        <td>350 (semi_label)</td>
+        <td class="part">진행 중</td>
+      </tr>
+      <tr>
+        <td class="label">blueberry</td>
+        <td>300</td>
+        <td>300</td>
+        <td>—</td>
+        <td class="part">오픈소스 추가 중</td>
+      </tr>
+      <tr>
+        <td class="label">strawberry</td>
+        <td>300</td>
+        <td>300</td>
+        <td>—</td>
+        <td class="no">미시작</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  로봇팔 음식 피딩 프로젝트 — YOLO 라벨링 도구 기획서 v1.3 &nbsp;|&nbsp; 2026-05-20
+</footer>
+
+<script>
+// 내비게이션 활성 섹션 표시
+const sections = document.querySelectorAll('section[id]');
+const navLinks  = document.querySelectorAll('nav a');
+const observer  = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

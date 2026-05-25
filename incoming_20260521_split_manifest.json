@@ -1,0 +1,22 @@
+{
+  "blueberry": {
+    "source_images": 298,
+    "train_added_or_existing": 248,
+    "test_added_or_existing": 50,
+    "converted_train": 248,
+    "converted_test": 50,
+    "skipped_existing": 0,
+    "train_dir": "C:\\Users\\dhtmd\\OneDrive\\바탕 화면\\robotarm\\yolo\\labeling_tools\\blueberry_jpg",
+    "test_dir": "C:\\Users\\dhtmd\\OneDrive\\바탕 화면\\robotarm\\yolo\\labeling_tools\\blueberry_test_images"
+  },
+  "strawberry": {
+    "source_images": 297,
+    "train_added_or_existing": 247,
+    "test_added_or_existing": 50,
+    "converted_train": 247,
+    "converted_test": 50,
+    "skipped_existing": 0,
+    "train_dir": "C:\\Users\\dhtmd\\OneDrive\\바탕 화면\\robotarm\\yolo\\labeling_tools\\strawberries_jpg",
+    "test_dir": "C:\\Users\\dhtmd\\OneDrive\\바탕 화면\\robotarm\\yolo\\labeling_tools\\strawberry_test_images"
+  }
+}

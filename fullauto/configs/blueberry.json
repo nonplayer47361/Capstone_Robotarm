@@ -1,0 +1,21 @@
+{
+  "target_name": "blueberry",
+  "source_images": "blueberry_jpg",
+  "seed_dataset": "research_runs/blueberry/01_manual_seed_dataset",
+  "class_id": 0,
+  "class_names": ["blueberry", "strawberry"],
+  "base_model": "yolo11n.pt",
+  "freeze": 10,
+  "iterations": 4,
+  "epochs": 40,
+  "final_epochs": 60,
+  "train_confidence": 0.25,
+  "accept_confidence": 0.88,
+  "min_area_ratio": 0.0003,
+  "max_area_ratio": 0.35,
+  "min_aspect_ratio": 0.55,
+  "max_aspect_ratio": 1.75,
+  "require_single_detection": true,
+  "val_ratio": 0.2,
+  "min_new_labels": 5
+}

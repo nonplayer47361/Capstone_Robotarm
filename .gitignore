@@ -1,0 +1,50 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv*/
+venv/
+env/
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+
+# YOLO/model artifacts
+*.pt
+*.onnx
+*.engine
+*.weights
+*.cache
+runs/
+
+# Local datasets and generated research outputs
+blueberry/
+blueberry_jpg/
+blueberry_test_images/
+strawberries/
+strawberries_jpg/
+strawberry_test_images/
+test/
+test_images/
+research_runs/
+fullauto/runs/
+fullauto/comparison_reports/
+_fresh_start_backups/
+*_dataset/
+
+# Generated A4 sheets and legacy generated image
+a4_detect/sheets/output/
+a4_detect/a4_sheet.png
+
+# Local calibration captures/results
+a4_detect/calib_images/
+a4_detect/calib_camera*.json
+
+# Archives and packaged distributions
+*.zip
+*.7z
+*.rar
