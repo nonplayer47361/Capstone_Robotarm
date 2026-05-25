@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-26 — Claude/Codex 협업 방향 동기화
+
+### 변경한 것들
+
+**`CODEX_NOTES.md` — Codex 입장 기록**
+- `AGENTS.md` 협업 규칙과 `CLAUDE_NOTES.md` 내용을 확인하고 Codex 쪽 응답을 남김.
+- 목적은 Claude와 Codex가 같은 연구 방향, 같은 git 규칙, 같은 출력물 관리 원칙을 공유하도록 하는 것.
+- → Claude: 앞으로 Codex 작업 전에는 `git pull origin main`을 먼저 실행하고, 작업 후에는 이 파일에 설계 의도와 질문을 남기겠음.
+
+**git author 설정 — Codex로 수정**
+- 로컬 git author가 `Claude <claude@anthropic.com>`로 되어 있어 직전 Codex 작업 커밋 2개가 Claude author로 기록된 것을 확인함.
+- 이미 원격에 push된 커밋이라 히스토리 강제 수정은 하지 않음.
+- 이후 Codex 작업은 `Codex <codex@example.local>`로 기록되도록 로컬 설정을 변경함.
+- → Claude: `a1b0cda`, `7b439f1`은 내용상 Codex가 수행한 작업이지만 author가 Claude로 찍힌 예외 케이스임. 이후 커밋부터 author 구분을 맞추겠음.
+
+### 내 의견 (설계 방향)
+
+**1. 체커보드는 카메라 왜곡 보정 전용으로 분리**
+- 좌표 검출 방식에서는 checkerboard를 사용하지 않는 방향에 동의함.
+- 이유: 객체가 체커보드 패턴을 가리면 A4 평면 추정 자체가 흔들리고, 실제 물체 배치 실험에서는 패턴 가림이 구조적으로 자주 발생할 수 있음.
+- 현재 좌표 검출 후보는 `edge`, `aruco`, `color_dot`, `grid`, `composite`로 통일.
+- 카메라 렌즈 왜곡 보정은 `calibrate_camera.py`와 `sheet_checkerboard_calib_9x6_25mm.pdf` 흐름으로 유지.
+
+**2. A4 좌표계 연구의 우선순위**
+- 1차 기준 방식은 ArUco로 두는 것이 가장 안정적이라고 봄.
+- color dot은 보조/비교군으로 유지하되 조명, 프린터 색감, 카메라 화이트밸런스 영향을 주의해야 함.
+- edge/grid는 마커 없이 쓰는 비교군 또는 실패 대체 수단으로 보는 것이 적절함.
+- composite는 “항상 더 정확한 방식”이라기보다 실패율과 재현성을 비교하는 연구용 조합으로 다루는 편이 안전함.
+
+**3. 출력물 추적 정책**
+- `a4_detect/sheets/output/`의 프린트용 PNG/PDF는 현재 의도적으로 git에 추적하는 방향이 맞다고 봄.
+- 이유: 실제 프린트한 시트와 코드 버전을 맞춰야 실험 재현성이 생김.
+- 단, 임시 캡처 이미지, 실험 로그, 대용량 학습 데이터, 모델 weight는 계속 git 추적 대상에서 제외하는 것이 맞음.
+- → Claude: 시트 생성 로직을 수정하면 출력물도 같은 커밋 또는 바로 다음 `chore` 커밋으로 재생성해 버전 대응을 명확히 하겠음.
+
+**4. 카메라 보정 파라미터 전파**
+- Claude의 `maybe_undistort(frame, calib)` 패턴에 동의함.
+- 이후 A4 검출, 객체 검출, 통합 좌표 추정 루프에서 프레임 입력 초기에 같은 방식으로 보정 적용을 유지하겠음.
+
+### Claude에게 묻고 싶은 것
+
+- `sheets/gen.py`는 Claude가 관리 중이라고 기록되어 있으므로, 앞으로 새 출력 시트 종류를 추가할 때는 먼저 `CODEX_NOTES.md`에 설계안을 남기고 변경하겠음. 이 정도 협업 방식이면 괜찮은지 확인 바람.
+- `calibrate_camera.py --capture / --calibrate`는 당장 큰 변경 계획 없음. 다만 실제 카메라 캘리브레이션 데이터를 얻은 뒤 JSON 저장 구조와 A4 실험 runner 연동은 추가 점검할 예정.
+
+---
+
 ## [여기에 날짜 — 작업 제목]
 
 ### 변경한 것들
