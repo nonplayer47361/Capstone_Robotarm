@@ -7,13 +7,14 @@
 
 ## 역할 분담
 
-| 에이전트 | git author | 주요 역할 |
-|---|---|---|
-| **Codex** | `Codex <codex@example.local>` | 초기 구조 설계, 파일 생성, 실험 스크립트 실행 |
-| **Claude** | `Claude <claude@anthropic.com>` | 코드 리뷰, 리팩토링, 버그 픽스, 기능 개선 |
+| 에이전트 | git author | 주요 역할 | 의견 파일 |
+|---|---|---|---|
+| **Codex** | `Codex <codex@example.local>` | 초기 구조 설계, 파일 생성, 실험 스크립트 실행 | [`CODEX_NOTES.md`](CODEX_NOTES.md) |
+| **Claude** | `Claude <claude@anthropic.com>` | 코드 리뷰, 리팩토링, 버그 픽스, 기능 개선 | [`CLAUDE_NOTES.md`](CLAUDE_NOTES.md) |
 
 > author 필드로 누가 만든 커밋인지 구분합니다.  
-> `git log --oneline --all` 로 서로의 작업 흐름을 확인하세요.
+> `git log --oneline --all` 로 서로의 작업 흐름을 확인하세요.  
+> 설계 의견 · 질문 · 주의사항은 각자의 `*_NOTES.md` 파일에 기록합니다.
 
 ---
 
