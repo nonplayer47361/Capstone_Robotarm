@@ -28,6 +28,7 @@ sheets/gen.py — A4 탐지 방법별 테스트 시트 생성
                                       # 필요한 복합 조합만 1점 시트로 생성
 
 프린트 주의: 반드시 '실제 크기(100%)' / '배율 없음'으로 출력하세요.
+가능하면 함께 생성되는 print_ready_a4_sheets.pdf 를 인쇄하세요.
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from PIL import Image
 
 
 def _configure_utf8_stdio() -> None:
@@ -69,6 +71,7 @@ DPI   = 200
 _W    = round(A4_W_MM * DPI / 25.4)   # 1654 px
 _H    = round(A4_H_MM * DPI / 25.4)   # 2339 px
 TARGET_DIAMETER_MM = 40.0
+EDGE_BORDER_INSET_MM = 6.0
 
 
 def _px(v: float) -> int:
@@ -97,9 +100,9 @@ SINGLE_TEST_PTS: list[tuple[int, float, float]] = [
 # 체커보드 전용: 패턴 아래 영역에 포인트 3개
 # (패턴은 x=[0~180], y=[35~175] 범위 점유)
 CHECKER_TEST_PTS: list[tuple[int, float, float]] = [
-    (1,  40.0, 188.0),   # ① 좌 (패턴 아래)
-    (2, 105.0, 233.0),   # ② 중앙 하단
-    (3, 170.0, 188.0),   # ③ 우 (패턴 아래)
+    (1,  40.0, 210.0),   # ① 좌 (40mm 원이 패턴을 가리지 않게 이격)
+    (2, 105.0, 245.0),   # ② 중앙 하단
+    (3, 170.0, 210.0),   # ③ 우 (40mm 원이 패턴을 가리지 않게 이격)
 ]
 
 # 복합 방식: 포인트 1개 (중앙)
@@ -191,11 +194,41 @@ COLOR_RADIUS_VARIANTS_MM = [4.0, 6.0, 8.0]
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _save(canvas: np.ndarray, path: Path) -> None:
-    """cv2.imencode 사용 (한글 경로 안전)."""
-    ext = path.suffix.lower() or ".png"
-    _, buf = cv2.imencode(ext, canvas)
-    path.write_bytes(buf.tobytes())
+    """PNG를 200DPI 메타데이터와 함께 저장한다."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+    Image.fromarray(rgb).save(path, dpi=(DPI, DPI))
     print(f"[gen] {path.name}  ({_W}x{_H}px, {DPI}DPI)")
+
+
+def _write_print_pdf(image_paths: list[Path], out_path: Path) -> None:
+    """PNG 시트들을 A4 실제 크기 페이지로 묶은 프린트용 PDF를 생성한다."""
+    if not image_paths:
+        return
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.lib.utils import ImageReader
+        from reportlab.pdfgen import canvas as rl_canvas
+    except ImportError:
+        print("[gen] reportlab 없음: print_ready_a4_sheets.pdf 생성을 건너뜁니다")
+        return
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    c = rl_canvas.Canvas(str(out_path), pagesize=A4)
+    for image_path in sorted(image_paths, key=lambda p: p.name):
+        c.drawImage(
+            ImageReader(str(image_path)),
+            0,
+            0,
+            width=A4_W_MM * mm,
+            height=A4_H_MM * mm,
+            preserveAspectRatio=False,
+            mask="auto",
+        )
+        c.showPage()
+    c.save()
+    print(f"[gen] {out_path.name}  (PDF, {len(image_paths)} A4 pages)")
 
 
 def _blank() -> np.ndarray:
@@ -204,6 +237,12 @@ def _blank() -> np.ndarray:
 
 def _draw_border(c: np.ndarray, thickness: int = 3) -> None:
     cv2.rectangle(c, (1, 1), (_W - 2, _H - 2), (0, 0, 0), thickness)
+
+
+def _draw_printable_edge_border(c: np.ndarray, thickness: int = 5) -> None:
+    """일반 프린터 비인쇄 여백을 피해 edge 검출용 테두리를 안쪽에 그린다."""
+    inset = _px(EDGE_BORDER_INSET_MM)
+    cv2.rectangle(c, (inset, inset), (_W - inset, _H - inset), (0, 0, 0), thickness)
 
 
 def _draw_grid(
@@ -447,7 +486,7 @@ def gen_edge_sheet(out_dir: Path) -> Path:
     _draw_grid(c, 10.0, (210, 210, 210), (230, 230, 230), 50.0)
 
     # 굵은 외곽 테두리 (엣지 탐지 안정성 향상)
-    cv2.rectangle(c, (4, 4), (_W - 5, _H - 5), (0, 0, 0), 5)
+    _draw_printable_edge_border(c, thickness=5)
 
     # 방향 표시
     _draw_top_indicator(c)
@@ -458,7 +497,7 @@ def gen_edge_sheet(out_dir: Path) -> Path:
 
     _draw_title(c, "EDGE SHEET  (exterior contour)  —  test pts: 5")
     _draw_footer(c,
-        "Calibration: A4 edge detection (no printed markers)  "
+        f"Calibration: printed edge border inset={EDGE_BORDER_INSET_MM:.0f}mm  "
         "|  Pts: 1~5 for orientation check  |  Print 100%")
 
     out = out_dir / "sheet_edge.png"
@@ -681,7 +720,7 @@ def _draw_method_base(c: np.ndarray, method: str, combo: dict | None = None) -> 
     """좌표 실험용 1점 시트의 A4 탐지 기준 요소를 그린다."""
     if method == "edge":
         _draw_grid(c, 10.0, (225, 225, 225), (242, 242, 242), 50.0, labels=False)
-        cv2.rectangle(c, (4, 4), (_W - 5, _H - 5), (0, 0, 0), 5)
+        _draw_printable_edge_border(c, thickness=5)
         _draw_top_indicator(c, text=False)
         return "Edge"
 
@@ -979,6 +1018,7 @@ def gen_all_sheets(
         out_dir = _HERE / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n[gen] output: {out_dir}\n")
+    paths: list[Path] = []
 
     # ── 캘리브레이션 체커보드 단독 생성 ───────────────────────────────────────
     if only == "calib_checkerboard":
@@ -1011,21 +1051,25 @@ def gen_all_sheets(
         paths = gen_one_point_eval_sheets(out_dir, only=one_point_only, combo_key=combo_key)
         n = len(paths)
     elif only and only in _SINGLE_GENERATORS:
-        _SINGLE_GENERATORS[only](out_dir)
+        paths = [_SINGLE_GENERATORS[only](out_dir)]
         n = 1
     elif only == "composite":
-        gen_composite_sheets(out_dir)
+        paths = gen_composite_sheets(out_dir)
         n = len(COMPOSITE_COMBOS)
     else:
+        paths = []
         for fn in _SINGLE_GENERATORS.values():
-            fn(out_dir)
-        gen_composite_sheets(out_dir)
+            paths.append(fn(out_dir))
+        paths.extend(gen_composite_sheets(out_dir))
         n = len(_SINGLE_GENERATORS) + len(COMPOSITE_COMBOS)
 
     # ── 캘리브레이션 체커보드 추가 생성 ───────────────────────────────────────
     if calib_sheet:
         gen_calib_checkerboard_sheet(out_dir)
         n += 1
+
+    if paths:
+        _write_print_pdf(paths, out_dir / "print_ready_a4_sheets.pdf")
 
     print(f"\n[gen] done  total={n} sheets")
     print("[gen] Print at 100% scale / no scaling / no fit-to-page")

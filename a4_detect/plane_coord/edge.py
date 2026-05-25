@@ -1,7 +1,8 @@
 """
 edge.py — Method 1: 외곽선(엣지) 기반 A4 탐지
 
-전처리(그레이→블러→캐니) → 컨투어 추출 → 가장 큰 사각형 → 4 코너 → 호모그래피
+전처리(그레이→블러→캐니) → 컨투어 추출 → 가장 큰 사각형 → 4 코너 → 호모그래피.
+기본 생성 시트는 프린터 여백을 피하려고 6mm 안쪽 검은 테두리를 기준으로 삼습니다.
 
 장점: 마커 불필요, 흰 A4 용지만 있으면 동작
 단점: 배경이 복잡하거나 조명이 고르지 않으면 실패
@@ -17,12 +18,16 @@ from .base import (
     BaseA4Detector, DetectResult,
 )
 
-# A4 코너 (mm):  TL TR BL BR
+# 생성 시트의 검은 테두리는 일반 프린터 비인쇄 여백을 피하기 위해
+# 실제 A4 외곽이 아니라 6mm 안쪽에 그린다.
+EDGE_BORDER_INSET_MM = 6.0
+
+# 검은 테두리 코너 (mm):  TL TR BL BR
 _CORNERS_MM = np.array([
-    [      0.0,      0.0],
-    [A4_W_MM,       0.0],
-    [      0.0, A4_H_MM],
-    [A4_W_MM,  A4_H_MM],
+    [EDGE_BORDER_INSET_MM,                 EDGE_BORDER_INSET_MM],
+    [A4_W_MM - EDGE_BORDER_INSET_MM,       EDGE_BORDER_INSET_MM],
+    [EDGE_BORDER_INSET_MM,           A4_H_MM - EDGE_BORDER_INSET_MM],
+    [A4_W_MM - EDGE_BORDER_INSET_MM, A4_H_MM - EDGE_BORDER_INSET_MM],
 ], dtype=np.float32)
 
 

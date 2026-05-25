@@ -6,6 +6,7 @@ opencv-python>=4.8.0
 numpy>=1.24.0
 Pillow>=9.0.0
 pillow-heif>=0.13.0
+reportlab>=4.0.0
 
 # Needed for research_pipeline.py auto-labeling and YOLO training.
 # Installing ultralytics also installs a compatible torch package in most cases.

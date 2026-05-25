@@ -36,8 +36,7 @@ fullauto/comparison_reports/
 _fresh_start_backups/
 *_dataset/
 
-# Generated A4 sheets and legacy generated image
-a4_detect/sheets/output/
+# Legacy generated image
 a4_detect/a4_sheet.png
 
 # Local calibration captures/results
