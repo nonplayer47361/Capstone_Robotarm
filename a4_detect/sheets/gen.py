@@ -69,7 +69,6 @@ DPI   = 200
 _W    = round(A4_W_MM * DPI / 25.4)   # 1654 px
 _H    = round(A4_H_MM * DPI / 25.4)   # 2339 px
 TARGET_DIAMETER_MM = 40.0
-EDGE_BORDER_INSET_MM = 6.0
 
 
 def _px(v: float) -> int:
@@ -223,16 +222,6 @@ def _write_print_pdf(image_paths: list[Path], out_path: Path) -> None:
 
 def _blank() -> np.ndarray:
     return np.full((_H, _W, 3), 255, dtype=np.uint8)
-
-
-def _draw_border(c: np.ndarray, thickness: int = 3) -> None:
-    cv2.rectangle(c, (1, 1), (_W - 2, _H - 2), (0, 0, 0), thickness)
-
-
-def _draw_printable_edge_border(c: np.ndarray, thickness: int = 5) -> None:
-    """일반 프린터 비인쇄 여백을 피해 edge 검출용 테두리를 안쪽에 그린다."""
-    inset = _px(EDGE_BORDER_INSET_MM)
-    cv2.rectangle(c, (inset, inset), (_W - inset, _H - inset), (0, 0, 0), thickness)
 
 
 def _draw_grid(
@@ -446,17 +435,10 @@ def _draw_grid_detection_lines(c: np.ndarray, labels: bool = True) -> None:
 
 def gen_edge_sheet(out_dir: Path) -> Path:
     """
-    흰 A4 + 굵은 테두리만.
-    Canny 엣지 탐지기가 용지 외곽을 자동 검출.
+    흰 A4 용지 자체의 실제 외곽선을 검출하기 위한 시트.
     테스트 포인트 5개: 방향(좌우위아래) 파악 + 전체 영역 커버.
     """
     c = _blank()
-
-    # 연한 격자 (시각 참고용 — 탐지에는 영향 없음)
-    _draw_grid(c, 10.0, (210, 210, 210), (230, 230, 230), 50.0)
-
-    # 굵은 외곽 테두리 (엣지 탐지 안정성 향상)
-    _draw_printable_edge_border(c, thickness=5)
 
     # 방향 표시
     _draw_top_indicator(c)
@@ -467,8 +449,7 @@ def gen_edge_sheet(out_dir: Path) -> Path:
 
     _draw_title(c, "EDGE SHEET  (exterior contour)  —  test pts: 5")
     _draw_footer(c,
-        f"Calibration: printed edge border inset={EDGE_BORDER_INSET_MM:.0f}mm  "
-        "|  Pts: 1~5 for orientation check  |  Print 100%")
+        "Calibration: physical A4 paper contour  |  Pts: 1~5 for orientation check  |  Print 100%")
 
     out = out_dir / "sheet_edge.png"
     _save(c, out)
@@ -528,7 +509,6 @@ def gen_grid_sheet(out_dir: Path) -> Path:
     _draw_top_indicator(c)
     _draw_test_points(c, SINGLE_TEST_PTS,
                       dot_color=(0, 0, 0), cross_color=(0, 0, 0))
-    _draw_border(c, thickness=3)
     _draw_title(c, f"GRID SHEET  ({GRID_SPACING_MM:.0f}mm spacing)  —  test pts: 3")
     _draw_footer(c, f"Calibration: {GRID_SPACING_MM:.0f}mm grid lines  |  Origin(0,0)=top-left  |  Print 100%")
 
@@ -574,7 +554,6 @@ def gen_composite_sheets(out_dir: Path) -> list[Path]:
         _draw_test_points(c, COMPOSITE_TEST_PT,
                           dot_color=(180, 0, 0), cross_color=(140, 0, 0))
 
-        _draw_border(c, thickness=3)
         _draw_title(c, combo["label"])
 
         methods_used = (
@@ -641,7 +620,6 @@ def gen_eval_sheet(out_dir: Path) -> Path:
         cv2.putText(c, f"Y={ym:.0f}", (_px(3), _px(ym) + _px(1.5)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.30, (100, 100, 100), 1)
 
-    _draw_border(c, thickness=3)
     _draw_title(c, "COORD EVAL SHEET  (ArUco + 30 pts, 5x6)  for mm error test")
     x_str = " ".join(f"{x:.0f}" for x in EVAL_X_MM)
     y_str = " ".join(f"{y:.0f}" for y in EVAL_Y_MM)
@@ -665,8 +643,6 @@ ONE_POINT_CHOICES = ONE_POINT_METHODS + ["composite"]
 def _draw_method_base(c: np.ndarray, method: str, combo: dict | None = None) -> str:
     """좌표 실험용 1점 시트의 A4 탐지 기준 요소를 그린다."""
     if method == "edge":
-        _draw_grid(c, 10.0, (225, 225, 225), (242, 242, 242), 50.0, labels=False)
-        _draw_printable_edge_border(c, thickness=5)
         _draw_top_indicator(c, text=False)
         return "Edge"
 
@@ -674,20 +650,17 @@ def _draw_method_base(c: np.ndarray, method: str, combo: dict | None = None) -> 
         _draw_grid(c, 10.0, labels=False)
         _draw_aruco_markers(c, size_mm=20.0, labels=False)
         _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
         return "ArUco"
 
     if method == "color_dot":
         _draw_grid(c, 10.0, labels=False)
         _draw_color_dots(c, COLOR_POSITIONS_MM, r_mm=6.0, labels=False)
         _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
         return "ColorDot"
 
     if method == "grid":
         _draw_grid_detection_lines(c, labels=False)
         _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
         return "Grid"
 
     if method == "composite":
@@ -708,7 +681,6 @@ def _draw_method_base(c: np.ndarray, method: str, combo: dict | None = None) -> 
         if combo["color"]:
             _draw_color_dots(c, _COMP_COLOR_MM, r_mm=5.5, labels=False)
         _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
         return combo["label"]
 
     raise ValueError(f"unknown method: {method}")
@@ -839,7 +811,6 @@ def gen_calibration_variant_sheets(
             _draw_color_dots(c, layout["color"], r_mm=value_mm, labels=False)
             suffix = f"color_dot_{layout_key}_radius{value_mm:.0f}mm"
         _draw_top_indicator(c, text=False)
-        _draw_border(c, thickness=3)
         _draw_target_circle(c, target_pt)
         _draw_sheet_sequence(c, seq, total)
         out = out_dir / f"{seq:03d}_calib_{suffix}_pt01.png"
