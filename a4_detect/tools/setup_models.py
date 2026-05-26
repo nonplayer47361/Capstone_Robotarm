@@ -4,16 +4,27 @@ tools/setup_models.py  —  오픈소스 YOLO 모델 다운로드 & 클래스 �
 
 지원 대상
 ---------
-  coin        : Open Images V7 (Ultralytics 자동 다운로드 — API 키 불필요)
-  bottle_cap  : Roboflow Universe (--api-key 필요)
-  stone       : Roboflow Universe (--api-key 필요)
+  coin        : Open Images V7  (Ultralytics 자동 다운로드 — API 키 불필요)
+                  --expected-class Coin
+  bottle_cap  : HuggingFace Murugan098/BottleCapDetection (API 키 불필요)
+                  --expected-class good_cap
+  stone       : YOLO-World yoloworld_s.pt (이미 models/에 포함)
+                  --model models/yoloworld_s.pt  (WORLD_CLASS_MAP 이 "rock" 자동 적용)
+  *Roboflow 백업*: --rf bottle_cap / stone  (--api-key 필요)
 
 사용법
 ------
   # 동전 모델 다운로드 + 클래스 확인
   python tools/setup_models.py --coin
 
-  # Roboflow 모델 다운로드 (병뚜껑 / 돌멩이)
+  # 병뚜껑 모델 다운로드 (HuggingFace, API 키 불필요)
+  python tools/setup_models.py --bottle-cap
+
+  # 돌멩이: YOLO-World 이미 models/yoloworld_s.pt 에 있음 → 별도 다운로드 불필요
+  #   사용 인자: --model models/yoloworld_s.pt --object-type stone
+  #   (WORLD_CLASS_MAP 이 "rock" 으로 자동 변환)
+
+  # Roboflow 백업 (병뚜껑 / 돌멩이)
   python tools/setup_models.py --rf bottle_cap --api-key YOUR_KEY
   python tools/setup_models.py --rf stone       --api-key YOUR_KEY
 
@@ -22,9 +33,9 @@ tools/setup_models.py  —  오픈소스 YOLO 모델 다운로드 & 클래스 �
 
 모델 저장 위치
 --------------
-  a4_detect/models/coin_oi7n.pt       <- Open Images V7 nano
-  a4_detect/models/bottle_cap_rf.pt   <- Roboflow
-  a4_detect/models/stone_rf.pt        <- Roboflow
+  a4_detect/models/coin_oi7n.pt        <- Open Images V7 nano  (expected-class: Coin)
+  a4_detect/models/bottle_cap_hf.pt    <- HuggingFace          (expected-class: good_cap)
+  a4_detect/models/yoloworld_s.pt      <- YOLO-World (stone 포함 임의 물체 탐지)
 """
 from __future__ import annotations
 
@@ -212,6 +223,37 @@ def setup_rf_model(object_name: str, api_key: str) -> Path:
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
 
+def setup_bottle_cap_hf() -> Path:
+    """HuggingFace Murugan098/BottleCapDetection 모델 다운로드."""
+    from huggingface_hub import hf_hub_download
+    YOLO = _require_ultralytics()
+    MODELS_DIR.mkdir(exist_ok=True)
+    dest = MODELS_DIR / "bottle_cap_hf.pt"
+
+    if dest.exists():
+        print(f"[bottle_cap] 이미 존재: {dest}  (재다운로드 생략)")
+    else:
+        print("[bottle_cap] HuggingFace 다운로드: Murugan098/BottleCapDetection")
+        cached = hf_hub_download(
+            repo_id="Murugan098/BottleCapDetection",
+            filename="best.pt",
+            local_dir=str(MODELS_DIR / "_tmp_bc"),
+        )
+        shutil.copy2(cached, dest)
+        tmp = MODELS_DIR / "_tmp_bc"
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        print(f"[bottle_cap] 저장 완료: {dest}  ({dest.stat().st_size/1024/1024:.1f} MB)")
+
+    model = YOLO(str(dest))
+    names = model.names
+    print(f"[bottle_cap] 클래스: {names}")
+    print(f"[bottle_cap] 사용 인자: --model models/bottle_cap_hf.pt --expected-class good_cap")
+    print("[bottle_cap] NOTE: 산업용 품질검사 모델. 탁자/종이 위 병뚜껑도 인식하나 "
+          "conf 가 낮을 수 있음 → --conf 0.20 권장")
+    return dest
+
+
 def main():
     p = argparse.ArgumentParser(
         description="오픈소스 YOLO 모델 다운로드 & 클래스 검증",
@@ -219,10 +261,12 @@ def main():
         epilog=__doc__,
     )
     g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument("--coin",    action="store_true",
-                   help="Open Images V7 동전 모델 다운로드 (API 키 불필요)")
+    g.add_argument("--coin",       action="store_true",
+                   help="Open Images V7 동전 모델 다운로드 (API 키 불필요) -> models/coin_oi7n.pt")
+    g.add_argument("--bottle-cap", action="store_true",
+                   help="HuggingFace 병뚜껑 모델 다운로드 (API 키 불필요) -> models/bottle_cap_hf.pt")
     g.add_argument("--rf", metavar="OBJECT",
-                   help="Roboflow 모델 다운로드: bottle_cap | stone")
+                   help="Roboflow 백업 다운로드: bottle_cap | stone  (--api-key 필요)")
     g.add_argument("--inspect", metavar="PT_PATH",
                    help="기존 .pt 파일의 클래스 목록 출력")
 
@@ -233,6 +277,9 @@ def main():
 
     if args.coin:
         setup_coin_oi7()
+
+    elif args.bottle_cap:
+        setup_bottle_cap_hf()
 
     elif args.rf:
         if not args.api_key:

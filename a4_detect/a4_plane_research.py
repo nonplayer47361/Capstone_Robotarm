@@ -334,7 +334,7 @@ def run_validate(
 ) -> None:
     """A4 평면좌표계 + YOLO 탐지를 결합한 실시간 검증."""
     try:
-        from ultralytics import YOLO
+        from eval import load_yolo_model
     except ImportError:
         raise SystemExit("ultralytics 필요: pip install ultralytics")
 
@@ -343,7 +343,7 @@ def run_validate(
     else:
         plane_det = _make_detector(method_name, aruco_marker_size_mm)
 
-    yolo_model = YOLO(model_path)
+    yolo_model = load_yolo_model(model_path)   # validate 는 단일 클래스 모드 없음
     cap        = _open_camera(camera_id)
 
     print(f"\n[validate] 평면 방법: {method_name}  모델: {model_path}")
@@ -457,8 +457,12 @@ def run_precheck(
     yolo_model = None
     if model_path:
         try:
-            from ultralytics import YOLO
-            yolo_model = YOLO(model_path)
+            from eval import load_yolo_model, WORLD_CLASS_MAP
+            _wc = WORLD_CLASS_MAP.get(object_type, object_type)
+            _is_world = "world" in Path(model_path).stem.lower()
+            yolo_model = load_yolo_model(
+                model_path, world_classes=[_wc] if _is_world else None
+            )
             print(f"[precheck] YOLO 모델: {model_path}")
         except Exception as e:
             print(f"[precheck] YOLO 로드 실패 — {e}")
@@ -768,11 +772,13 @@ def run_precheck_object_only(
         raise SystemExit("--precheck-target object 사용 시 --model MODEL.pt 가 필요합니다.")
 
     try:
-        from ultralytics import YOLO
+        from eval import load_yolo_model, WORLD_CLASS_MAP
     except ImportError:
         raise SystemExit("ultralytics 필요: pip install ultralytics")
 
-    model = YOLO(model_path)
+    _wc = WORLD_CLASS_MAP.get(object_type, object_type)
+    _is_world = "world" in Path(model_path).stem.lower()
+    model = load_yolo_model(model_path, world_classes=[_wc] if _is_world else None)
     cap = _open_camera(camera_id)
 
     det_buf = deque(maxlen=window)
@@ -1299,8 +1305,9 @@ def main() -> None:
     p.add_argument("--expected-class", default="",
                    metavar="CLASS",
                    help=("YOLO가 반환해야 하는 클래스명. 생략하면 object-type과 동일하게 사용. "
-                         "예: 동전을 pill_cap 모델로 테스트할 때 "
-                         "--object-type coin --expected-class pill_cap"))
+                         "YOLO-World(yoloworld_s.pt) 사용 시 set_classes() 에도 적용됨. "
+                         "예: 동전을 OI7 모델로 테스트할 때 --expected-class Coin, "
+                         "돌멩이를 YOLO-World로 테스트할 때 --expected-class rock"))
     p.add_argument("--repeats", type=int, default=3,
                    help="포인트당 캡처 반복 횟수 (기본: 3)")
     p.add_argument("--log-dir", default="./eval_logs",
