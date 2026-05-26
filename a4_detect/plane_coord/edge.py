@@ -36,7 +36,6 @@ class EdgeDetector(BaseA4Detector):
         blur_ksize: int     = 5,
         min_area_ratio: float = 0.15,
         poly_eps_ratio: float = 0.02,
-        corner_margin_px: int = 8,
     ):
         super().__init__("edge")
         self.canny_lo       = canny_lo
@@ -44,7 +43,6 @@ class EdgeDetector(BaseA4Detector):
         self.blur_ksize     = blur_ksize
         self.min_area_ratio = min_area_ratio
         self.poly_eps_ratio = poly_eps_ratio
-        self.corner_margin_px = corner_margin_px
 
     def detect(self, frame: np.ndarray) -> DetectResult:
         result = DetectResult()
@@ -86,19 +84,6 @@ class EdgeDetector(BaseA4Detector):
 
         # ── 코너 정렬: TL TR BL BR ──────────────────────────────────────────
         pts = self._order_quad(best_quad.reshape(4, 2).astype(np.float32))
-
-        margin = float(self.corner_margin_px)
-        inside = (
-            (pts[:, 0] >= margin).all()
-            and (pts[:, 0] <= (w - 1 - margin)).all()
-            and (pts[:, 1] >= margin).all()
-            and (pts[:, 1] <= (h - 1 - margin)).all()
-        )
-        if not inside:
-            cv2.polylines(debug, [pts.astype(int)], True, (0, 140, 255), 2)
-            result.note = "A4 corner too close to frame border"
-            result.debug_img = debug
-            return result
 
         cv2.polylines(debug, [pts.astype(int)], True, (0, 240, 60), 3)
         for i, (x, y) in enumerate(pts):
