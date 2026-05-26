@@ -68,6 +68,33 @@ _CB_FLAGS = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
 _IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 
 
+def _imread_unicode(path: Path) -> np.ndarray | None:
+    """Read an image from paths that may contain non-ASCII characters."""
+    try:
+        raw = Path(path).read_bytes()
+    except OSError:
+        return None
+    data = np.frombuffer(raw, dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+
+def _imwrite_unicode(path: Path, image: np.ndarray) -> bool:
+    """Write an image to paths that may contain non-ASCII characters."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ext = path.suffix or ".jpg"
+    ok, encoded = cv2.imencode(ext, image)
+    if not ok:
+        return False
+    try:
+        path.write_bytes(encoded.tobytes())
+    except OSError:
+        return False
+    return True
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Step 1: 체커보드 시트 생성 — sheets/gen.py 에 위임
 # ═════════════════════════════════════════════════════════════════════════════
@@ -162,7 +189,10 @@ def run_capture(
 
         if do_snap:
             path = out_dir / f"calib_{snap_idx:04d}.jpg"
-            cv2.imwrite(str(path), frame)
+            if not _imwrite_unicode(path, frame):
+                print(f"[snap][WARN] failed to save: {path}")
+                last_auto_t = now
+                continue
             snap_paths.append(path)
             snap_idx += 1
             last_auto_t = now
@@ -217,7 +247,7 @@ def run_calibrate(
     used, skipped = 0, 0
 
     for path in image_paths:
-        img = cv2.imread(str(path))
+        img = _imread_unicode(path)
         if img is None:
             skipped += 1
             continue
