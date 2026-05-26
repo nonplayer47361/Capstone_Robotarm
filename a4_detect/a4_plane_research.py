@@ -28,21 +28,28 @@ Step 4: 모델 포함 실시간 검증 (A4 + YOLO 탐지)
 
 Step 5: 선행 테스트
   # 5-1. A4 평면 좌표계 검출 방식 전체 비교
-  python a4_plane_research.py --precheck --precheck-target a4 --all-methods
+  python a4_plane_research.py --precheck --precheck-target a4 --all-methods \\
+         --condition level --calib calib_camera0.json
 
   # 5-2. YOLO 객체탐지만 단독 테스트
-  python a4_plane_research.py --precheck --precheck-target object --model best.pt
+  python a4_plane_research.py --precheck --precheck-target object --model best.pt \\
+         --object-type pill_cap --condition level --calib calib_camera0.json
 
   # 5-3. A4 전체 비교 후 YOLO 객체 단독 테스트를 순서대로 실행
   python a4_plane_research.py --precheck --precheck-target suite --model best.pt
 
   # 5-4. 선택한 A4 방식 + YOLO 통합 상태 확인
-  python a4_plane_research.py --precheck --precheck-target both --method aruco --model best.pt
+  python a4_plane_research.py --precheck --precheck-target both --method aruco --model best.pt \\
+         --object-type pill_cap --condition level --calib calib_camera0.json
 
 Step 6: 좌표 오차 측정 실험 (핵심 지표: mm 오차)
-  python a4_plane_research.py --eval --model best.pt --object-type blueberry
-  python a4_plane_research.py --eval --model best.pt --object-type strawberry \\
-         --method composite --repeats 5 --log-dir ./eval_logs
+  python a4_plane_research.py --eval --method aruco --model best.pt \\
+         --object-type pill_cap --one-point --manual --repeats 5 \\
+         --condition level --calib calib_camera0.json
+  # 같은 pill_cap 모델로 동전/페트병뚜껑/돌멩이 일반화 확인:
+  python a4_plane_research.py --eval --method aruco --model best.pt \\
+         --object-type coin --expected-class pill_cap --one-point --manual \\
+         --condition level --calib calib_camera0.json
   mixed 모드 키: 1=blueberry  2=strawberry  Space=캡처  S=스냅샷
 
 Step 7: 기존 CSV 로그에서 리포트 재생성
@@ -431,6 +438,9 @@ def run_precheck(
     conf_thresh:    float,
     window:         int   = 60,
     aruco_marker_size_mm: float = 20.0,
+    calib=None,
+    object_type: str = "object",
+    condition: str = "unspecified",
 ) -> None:
     """
     실험 전 선행 테스트.
@@ -472,13 +482,18 @@ def run_precheck(
     a4_go     = False
     yolo_go   = False
 
-    print(f"[precheck] 카메라: {camera_id}  방법: {plane_method}  window: {window}프레임")
+    print(f"[precheck] 카메라: {camera_id}  방법: {plane_method}  조건: {condition}  window: {window}프레임")
+    if yolo_model is not None:
+        print(f"[precheck] 물체 라벨: {object_type}")
+    if calib is not None:
+        print(f"[precheck] 렌즈 왜곡 보정 활성 (rms={calib.rms_px:.4f}px)")
     print("[precheck] Q=종료  R=통계 초기화\n")
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+        frame = maybe_undistort(frame, calib)
         frame_n += 1
 
         # ── A4 탐지 ────────────────────────────────────────────────────────────
@@ -591,6 +606,32 @@ def run_precheck(
     print(f"  종합 판정: {'[ GO ] → eval 실험 시작 가능' if overall else '[NO-GO] → 세팅 확인 필요'}")
     print("=" * 52)
 
+    a4_f = sum(a4_buf) / len(a4_buf) * 100 if a4_buf else 0.0
+    yo_f = sum(yolo_buf) / len(yolo_buf) * 100 if yolo_buf else 0.0
+    avg_repro = sum(repro_buf) / len(repro_buf) if repro_buf else float("nan")
+    avg_conf = sum(conf_buf) / len(conf_buf) if conf_buf else float("nan")
+    _save_precheck_log("both" if yolo_model else f"a4_{plane_method}", {
+        "mode": "both" if yolo_model else "a4_single",
+        "object_type": object_type,
+        "condition": condition,
+        "model_path": model_path,
+        "camera_id": camera_id,
+        "plane_method": plane_method,
+        "composite_mode": composite_mode,
+        "conf_thresh": conf_thresh,
+        "window": window,
+        "total_frames": frame_n,
+        "calib_enabled": calib is not None,
+        "a4_success_rate_pct": round(a4_f, 2),
+        "a4_judge": "GO" if a4_f >= 80 else "NO-GO",
+        "a4_repro_mean_mm": None if math.isnan(avg_repro) else round(avg_repro, 4),
+        "yolo_success_rate_pct": round(yo_f, 2) if yolo_model else None,
+        "yolo_judge": ("GO" if yo_f >= 70 else "NO-GO") if yolo_model else None,
+        "yolo_conf_mean": None if math.isnan(avg_conf) else round(avg_conf, 4),
+        "class_counts": dict(cls_cnt.most_common()),
+        "overall_judge": "GO" if overall else "NO-GO",
+    })
+
 
 def run_precheck_a4_all(
     camera_id: int,
@@ -598,6 +639,7 @@ def run_precheck_a4_all(
     window: int = 60,
     aruco_marker_size_mm: float = 20.0,
     calib=None,
+    condition: str = "unspecified",
 ) -> None:
     """모든 A4 평면 좌표계 검출 방식을 같은 카메라 프레임에서 선행 테스트."""
     from collections import deque
@@ -623,7 +665,9 @@ def run_precheck_a4_all(
     WIN = "Pre-Check A4 Methods — all  [R=reset  Q=quit]"
     frame_n = 0
 
-    print(f"[precheck:a4] 카메라: {camera_id}  methods: {', '.join(method_order)}")
+    print(f"[precheck:a4] 카메라: {camera_id}  조건: {condition}  methods: {', '.join(method_order)}")
+    if calib is not None:
+        print(f"[precheck:a4] 렌즈 왜곡 보정 활성 (rms={calib.rms_px:.4f}px)")
     print("[precheck:a4] A4 시트를 카메라 아래에 두고 각 방식의 성공률/재투영 오차를 비교하세요.")
     print("[precheck:a4] R=통계 초기화  Q=종료\n")
 
@@ -698,10 +742,12 @@ def run_precheck_a4_all(
 
     _save_precheck_log("a4_all", {
         "mode": "a4_all",
+        "condition": condition,
         "camera_id": camera_id,
         "composite_mode": composite_mode,
         "window": window,
         "total_frames": frame_n,
+        "calib_enabled": calib is not None,
         "methods": method_results,
     })
 
@@ -712,6 +758,8 @@ def run_precheck_object_only(
     conf_thresh: float,
     window: int = 60,
     calib=None,
+    object_type: str = "object",
+    condition: str = "unspecified",
 ) -> None:
     """A4 좌표계 없이 YOLO 객체탐지만 단독 선행 테스트."""
     from collections import Counter, deque
@@ -735,7 +783,10 @@ def run_precheck_object_only(
     WIN = "Pre-Check Object Detection — YOLO only  [S=snap  R=reset  Q=quit]"
 
     print(f"[precheck:object] 모델: {model_path}")
+    print(f"[precheck:object] 물체 라벨: {object_type}  조건: {condition}")
     print(f"[precheck:object] 카메라: {camera_id}  conf: {conf_thresh}  window: {window}")
+    if calib is not None:
+        print(f"[precheck:object] 렌즈 왜곡 보정 활성 (rms={calib.rms_px:.4f}px)")
     print("[precheck:object] 객체탐지만 확인합니다. A4 검출/좌표 변환은 수행하지 않습니다.\n")
 
     while True:
@@ -809,11 +860,14 @@ def run_precheck_object_only(
 
     _save_precheck_log("object", {
         "mode": "object",
+        "object_type": object_type,
+        "condition": condition,
         "model_path": model_path,
         "camera_id": camera_id,
         "conf_thresh": conf_thresh,
         "window": window,
         "total_frames": frame_n,
+        "calib_enabled": calib is not None,
         "det_rate_pct": round(det_rate, 2),
         "judge": "GO" if det_rate >= 70 else "NO-GO",
         "avg_conf": None if math.isnan(avg_conf) else round(avg_conf, 4),
@@ -1242,6 +1296,11 @@ def main() -> None:
                    help=("측정 객체 종류 (기본: cap). "
                          "예: cap | coin | bottle_cap | blueberry | strawberry | mixed. "
                          "mixed = 두 클래스 혼합 배치, 1/2 키로 현재 객체 지정"))
+    p.add_argument("--expected-class", default="",
+                   metavar="CLASS",
+                   help=("YOLO가 반환해야 하는 클래스명. 생략하면 object-type과 동일하게 사용. "
+                         "예: 동전을 pill_cap 모델로 테스트할 때 "
+                         "--object-type coin --expected-class pill_cap"))
     p.add_argument("--repeats", type=int, default=3,
                    help="포인트당 캡처 반복 횟수 (기본: 3)")
     p.add_argument("--log-dir", default="./eval_logs",
@@ -1335,10 +1394,12 @@ def main() -> None:
 
         if target == "suite":
             run_precheck_a4_all(args.camera, args.composite_mode, args.window,
-                                aruco_marker_size_mm=args.aruco_marker_size, calib=_calib)
+                                aruco_marker_size_mm=args.aruco_marker_size, calib=_calib,
+                                condition=args.condition)
             if args.model:
                 run_precheck_object_only(args.model, args.camera, args.conf, args.window,
-                                         calib=_calib)
+                                         calib=_calib, object_type=args.object_type,
+                                         condition=args.condition)
             else:
                 print("[precheck:suite] --model 이 없어 YOLO 객체 단독 테스트는 건너뜁니다.")
 
@@ -1346,16 +1407,19 @@ def main() -> None:
             if not args.model:
                 p.error("--precheck-target object 사용 시 --model MODEL.pt 필수")
             run_precheck_object_only(args.model, args.camera, args.conf, args.window,
-                                     calib=_calib)
+                                     calib=_calib, object_type=args.object_type,
+                                     condition=args.condition)
 
         elif target == "a4":
             if args.all_methods:
                 run_precheck_a4_all(args.camera, args.composite_mode, args.window,
-                                    aruco_marker_size_mm=args.aruco_marker_size, calib=_calib)
+                                    aruco_marker_size_mm=args.aruco_marker_size, calib=_calib,
+                                    condition=args.condition)
             else:
                 run_precheck("", args.camera, args.method,
                              args.composite_mode, args.conf, args.window,
-                             aruco_marker_size_mm=args.aruco_marker_size)
+                             aruco_marker_size_mm=args.aruco_marker_size, calib=_calib,
+                             object_type=args.object_type, condition=args.condition)
 
         elif target == "both":
             if args.all_methods:
@@ -1364,7 +1428,8 @@ def main() -> None:
                 p.error("--precheck-target both 사용 시 --model MODEL.pt 필수")
             run_precheck(args.model, args.camera, args.method,
                          args.composite_mode, args.conf, args.window,
-                         aruco_marker_size_mm=args.aruco_marker_size)
+                         aruco_marker_size_mm=args.aruco_marker_size, calib=_calib,
+                         object_type=args.object_type, condition=args.condition)
 
     elif args.validate:
         if not args.model:
@@ -1399,6 +1464,7 @@ def main() -> None:
             conf_thresh          = args.conf,
             log_dir              = Path(args.log_dir),
             condition            = args.condition,
+            expected_class       = args.expected_class or None,
             manual_advance       = args.manual,
             calib                = _calib,
             aruco_marker_size_mm = args.aruco_marker_size,

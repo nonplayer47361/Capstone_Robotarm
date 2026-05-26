@@ -112,6 +112,7 @@ def run_eval(
     conf_thresh:          float,
     log_dir:              Path,
     condition:            str               = "unspecified",
+    expected_class:       str | None        = None,
     manual_advance:       bool              = False,
     calib:                CameraCalib | None = None,
     aruco_marker_size_mm: float             = 20.0,
@@ -130,6 +131,7 @@ def run_eval(
     conf_thresh          : YOLO conf 임계값
     log_dir              : CSV 로그 저장 디렉터리
     condition            : 실험 조건 라벨. 예: level, tilt_low, tilt_mid, tilt_high
+    expected_class        : YOLO가 반환해야 하는 클래스명. None이면 object_type과 동일하게 사용
     manual_advance       : True → 캡처 완료 후 자동 넘김 없음, [N] 키로 수동 진행
     calib                : CameraCalib — 렌즈 왜곡 보정 파라미터. None 이면 보정 안 함
     aruco_marker_size_mm : 출력물 ArUco 마커 크기 (mm). gen.py 와 반드시 일치
@@ -168,7 +170,7 @@ def run_eval(
     # mixed 모드: 사용자가 B/S 키로 현재 올려놓은 객체 클래스를 지정
     current_class = "blueberry"   # mixed 초기값; 단일 모드에서는 object_type으로 덮어씌움
     if not is_mixed:
-        current_class = object_type
+        current_class = expected_class or object_type
 
     session  = EvalSession(object_type, plane_method, log_dir, condition=condition)
     pt_idx   = 0
@@ -176,6 +178,8 @@ def run_eval(
     snap_idx = 0
 
     print(f"\n[eval] 객체: {object_type}  방법: {plane_method}  조건: {session.condition}  모델: {model_path}")
+    if not is_mixed and current_class != object_type:
+        print(f"[eval] YOLO 기대 클래스: {current_class}  (물체 라벨과 분리 기록)")
     if is_mixed:
         print("[eval] MIXED 모드: 1=클래스1 / 2=클래스2 키로 현재 객체 지정 후 Space 캡처")
     if manual_advance:
