@@ -1221,7 +1221,8 @@ def main() -> None:
                    help="--gen-sheets 에서 특정 시트만 생성 "
                         "(calib_checkerboard=카메라 왜곡 보정용 체커보드 PDF)")
     p.add_argument("--one-point", action="store_true",
-                   help="--gen-sheets: 좌표 실험용 한 장당 표시점 1개 시트 묶음 생성")
+                   help="--gen-sheets: 좌표 실험용 한 장당 표시점 1개 시트 묶음 생성. "
+                        "--eval: QUICK_TEST_PTS(5점) 사용 (1점 시트 출력물 전용)")
     p.add_argument("--combo", default="all",
                    choices=["all", "comp_A_aruco", "comp_B_aruco_color",
                             "comp_C_aruco_grid", "comp_D_full"],
@@ -1373,14 +1374,23 @@ def main() -> None:
         if not args.model:
             p.error("--eval 사용 시 --model MODEL.pt 필수")
         from eval.runner import run_eval
-        from eval        import EVAL_TEST_PTS
+        if args.one_point:
+            # 1점 시트(one-point 모드 출력물) 전용 — QUICK_TEST_PTS(5점) 사용
+            # 좌표: ①중앙(105,148.5) ②좌상(60,65) ③우상(150,65) ④좌하(60,232) ⑤우하(150,232)
+            from sheets.gen import QUICK_TEST_PTS
+            _test_pts = QUICK_TEST_PTS
+            print(f"[eval] --one-point 모드: QUICK_TEST_PTS {len(_test_pts)}점 사용")
+        else:
+            from eval import EVAL_TEST_PTS
+            _test_pts = EVAL_TEST_PTS
+            print(f"[eval] 표준 모드: EVAL_TEST_PTS {len(_test_pts)}점 사용")
         run_eval(
             object_type          = args.object_type,
             model_path           = args.model,
             camera_id            = args.camera,
             plane_method         = args.method,
             composite_mode       = args.composite_mode,
-            test_pts             = EVAL_TEST_PTS,
+            test_pts             = _test_pts,
             repeats              = args.repeats,
             conf_thresh          = args.conf,
             log_dir              = Path(args.log_dir),
