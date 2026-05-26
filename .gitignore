@@ -30,6 +30,7 @@ strawberries_jpg/
 strawberry_test_images/
 test/
 test_images/
+external_datasets/
 research_runs/
 fullauto/runs/
 fullauto/comparison_reports/
