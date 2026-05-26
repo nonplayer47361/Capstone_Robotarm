@@ -416,10 +416,6 @@ def run_validate(
                 cv2.rectangle(vis, (x1, y1), (x2, y2), (30, 220, 30), 2)
                 cv2.drawMarker(vis, (int(cx_px), int(cy_px)),
                                (0, 0, 230), cv2.MARKER_CROSS, 24, 2)
-                coord_txt = f"A4: ({a4_x:.1f}, {a4_y:.1f}) mm   conf={conf:.2f}"
-                cv2.putText(vis, coord_txt, (x1, max(y1 - 10, 20)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.60, (30, 230, 30), 2)
-
                 if check_pts:
                     dists = [(np.hypot(a4_x - ex, a4_y - ey), (ex, ey))
                              for ex, ey in check_pts]
@@ -568,8 +564,7 @@ def run_precheck(
                     lbl += f"  ({pred_x:.1f},{pred_y:.1f})mm"
                 else:
                     lbl += "  (A4 FAIL — 좌표 없음)"
-                cv2.putText(vis, lbl, (x1, max(y1 - 10, 18)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.58, box_color, 2)
+                # Keep camera view clean; status text is rendered in a side panel.
 
             yolo_buf.append(bool(boxes))
             if yolo_conf_val:
@@ -585,14 +580,7 @@ def run_precheck(
         yolo_go = yolo_rate >= 70.0
 
         if yolo_model:
-            _draw_precheck_top(vis, result.ok, result.repro_err_mm,
-                               pred_cls, yolo_conf_val, pred_x, pred_y)
-            _draw_precheck_stats(vis, frame_n, window,
-                                 a4_rate, a4_go, avg_repro,
-                                 yolo_rate, yolo_go, avg_conf,
-                                 cls_cnt, True)
-
-            mini = _make_minimap(result, [], vis.shape[0])
+            mini = _make_minimap(result, [], 220)
             if pred_x is not None and pred_y is not None:
                 # Use the same scale as the minimap height.
                 s  = mini.shape[0] / A4_H_MM
@@ -600,7 +588,12 @@ def run_precheck(
                 my = int(np.clip(pred_y, 0, A4_H_MM) * s)
                 cv2.circle(mini, (mx, my), 7, (0, 0, 210), -1)
                 cv2.circle(mini, (mx, my), 8, (255, 255, 255), 1)
-            display = np.hstack([vis, mini])
+            display = _compose_precheck_yolo_display(
+                vis, mini, plane_method, condition, result,
+                frame_n, window, a4_rate, a4_go, avg_repro,
+                yolo_rate, yolo_go, avg_conf, cls_cnt,
+                pred_cls, yolo_conf_val, pred_x, pred_y,
+            )
         else:
             display = _append_a4_precheck_status_bar(
                 vis, result.ok, result.repro_err_mm,
@@ -868,22 +861,19 @@ def run_precheck_object_only(
 
             cv2.rectangle(vis, (x1, y1), (x2, y2), (30, 220, 30), 2)
             cv2.drawMarker(vis, (int(cx), int(cy)), (0, 0, 230), cv2.MARKER_CROSS, 24, 2)
-            cv2.putText(vis, f"{cls_name} {conf:.2f}  px=({cx:.0f},{cy:.0f})",
-                        (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.60, (30, 220, 30), 2)
 
         det_rate = sum(det_buf) / len(det_buf) * 100 if det_buf else 0.0
         avg_conf = sum(conf_buf) / len(conf_buf) if conf_buf else float("nan")
-        _draw_object_precheck_panel(
+        display = _compose_object_precheck_display(
             vis, frame_n, window, det_rate, avg_conf, cls_cnt, best_info
         )
         if first_sample is None:
-            first_sample = vis.copy()
+            first_sample = display.copy()
         if detected and first_detected_sample is None:
-            first_detected_sample = vis.copy()
-        last_sample = vis.copy()
+            first_detected_sample = display.copy()
+        last_sample = display.copy()
 
-        cv2.imshow(WIN, vis)
+        cv2.imshow(WIN, display)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
@@ -895,7 +885,7 @@ def run_precheck_object_only(
             print("[precheck:object] 통계 초기화")
         if key == ord("s"):
             fname = HERE / f"precheck_object_{snap_idx:04d}.jpg"
-            cv2.imwrite(str(fname), vis)
+            cv2.imwrite(str(fname), display)
             print(f"[snap] {fname}")
             snap_idx += 1
 
@@ -1046,6 +1036,143 @@ def _append_a4_precheck_status_bar(
     cv2.putText(bar, f"frames {frame_n} / window {window}   R=reset   Q=save+next",
                 (10, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 180, 180), 1)
     return out
+
+
+def _fmt_num(value, suffix: str = "", digits: int = 2) -> str:
+    if value is None:
+        return "-"
+    try:
+        if math.isnan(value):
+            return "-"
+    except TypeError:
+        pass
+    return f"{value:.{digits}f}{suffix}"
+
+
+def _put_panel_text(
+    panel: np.ndarray,
+    text: str,
+    x: int,
+    y: int,
+    color=(220, 220, 220),
+    scale: float = 0.48,
+    thickness: int = 1,
+) -> int:
+    cv2.putText(panel, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+    return y + int(24 * max(scale, 0.45) / 0.48)
+
+
+def _make_info_panel(
+    height: int,
+    title: str,
+    lines: list[tuple[str, tuple[int, int, int]]],
+    mini: np.ndarray | None = None,
+    width: int = 360,
+) -> np.ndarray:
+    panel = np.full((height, width, 3), 28, dtype=np.uint8)
+    y = 28
+    y = _put_panel_text(panel, title, 14, y, (255, 255, 255), 0.62, 2)
+    cv2.line(panel, (12, y - 8), (width - 12, y - 8), (75, 75, 75), 1)
+
+    if mini is not None:
+        mh, mw = mini.shape[:2]
+        max_w = width - 28
+        if mw > max_w:
+            scale = max_w / max(mw, 1)
+            mini = cv2.resize(mini, (max_w, max(1, int(mh * scale))), interpolation=cv2.INTER_AREA)
+            mh, mw = mini.shape[:2]
+        x = (width - mw) // 2
+        panel[y:y + mh, x:x + mw] = mini
+        y += mh + 22
+
+    for text, color in lines:
+        if y > height - 18:
+            break
+        y = _put_panel_text(panel, text, 14, y, color)
+    return panel
+
+
+def _compose_precheck_yolo_display(
+    vis: np.ndarray,
+    mini: np.ndarray,
+    method: str,
+    condition: str,
+    result: DetectResult,
+    frame_n: int,
+    window: int,
+    a4_rate: float,
+    a4_go: bool,
+    avg_repro: float,
+    yolo_rate: float,
+    yolo_go: bool,
+    avg_conf: float,
+    cls_cnt,
+    pred_cls,
+    yolo_conf,
+    pred_x,
+    pred_y,
+) -> np.ndarray:
+    ok_green = (80, 230, 100)
+    warn_red = (80, 80, 230)
+    muted = (170, 170, 170)
+    a4_color = ok_green if result.ok else warn_red
+    yolo_color = ok_green if pred_cls is not None else warn_red
+    lines = [
+        (f"condition: {condition}", muted),
+        (f"method: {method}", muted),
+        (f"A4 now: {'OK' if result.ok else 'FAIL'}", a4_color),
+        (f"A4 rate: {a4_rate:.0f}%  {'GO' if a4_go else 'NO-GO'}", ok_green if a4_go else warn_red),
+        (f"repro avg: {_fmt_num(avg_repro, ' mm')}", muted),
+        (f"YOLO now: {pred_cls if pred_cls else 'none'}", yolo_color),
+        (f"YOLO rate: {yolo_rate:.0f}%  {'GO' if yolo_go else 'NO-GO'}", ok_green if yolo_go else warn_red),
+        (f"conf: {_fmt_num(yolo_conf, '', 3)} / avg {_fmt_num(avg_conf, '', 3)}", muted),
+        (f"A4 xy: ({_fmt_num(pred_x, '', 1)}, {_fmt_num(pred_y, '', 1)}) mm", muted),
+        (f"frames: {frame_n}  window: {window}", muted),
+        ("R=reset   Q=save/quit", muted),
+    ]
+    if cls_cnt:
+        cls_text = " ".join(f"{k}:{v}" for k, v in cls_cnt.most_common(3))
+        lines.insert(9, (f"classes: {cls_text}", (120, 220, 120)))
+    side = _make_info_panel(vis.shape[0], "A4 + YOLO", lines, mini=mini)
+    return np.hstack([vis, side])
+
+
+def _compose_object_precheck_display(
+    vis: np.ndarray,
+    frame_n: int,
+    window: int,
+    det_rate: float,
+    avg_conf: float,
+    cls_cnt,
+    best_info,
+) -> np.ndarray:
+    ok_green = (80, 230, 100)
+    warn_red = (80, 80, 230)
+    muted = (170, 170, 170)
+    if best_info is not None:
+        cls_name, conf, cx, cy = best_info
+        now = f"{cls_name} conf={conf:.2f}"
+        center = f"center px: ({cx:.0f}, {cy:.0f})"
+        now_color = ok_green
+    else:
+        now = "no object detected"
+        center = "center px: -"
+        now_color = warn_red
+
+    lines = [
+        (f"now: {now}", now_color),
+        (center, muted),
+        (f"detect rate: {det_rate:.0f}%  {'GO' if det_rate >= 70 else 'NO-GO'}",
+         ok_green if det_rate >= 70 else warn_red),
+        (f"avg conf: {_fmt_num(avg_conf, '', 3)}", muted),
+        (f"frames: {frame_n}  window: {window}", muted),
+        ("S=snapshot   R=reset   Q=quit", muted),
+    ]
+    if cls_cnt:
+        cls_text = " ".join(f"{k}:{v}" for k, v in cls_cnt.most_common(4))
+        lines.insert(4, (f"classes: {cls_text}", (120, 220, 120)))
+    side = _make_info_panel(vis.shape[0], "YOLO Object", lines, mini=None)
+    return np.hstack([vis, side])
 
 
 def _resize_panel(img: np.ndarray, width: int = 500) -> np.ndarray:
