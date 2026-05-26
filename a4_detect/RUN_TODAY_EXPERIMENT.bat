@@ -167,8 +167,8 @@ goto :end
 :: ---------------------------------------------------------------------------
 :ask_camera
 echo.
-set /p "CAMERA=Camera ID (Enter=1): "
-if "!CAMERA!"=="" set "CAMERA=1"
+set /p "CAMERA=Camera ID (Enter=0): "
+if "!CAMERA!"=="" set "CAMERA=0"
 exit /b 0
 
 :ask_model

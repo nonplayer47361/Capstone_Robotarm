@@ -39,8 +39,8 @@ cd "C:\Users\dhtmd\OneDrive\바탕 화면\robotarm\yolo\labeling_tools\a4_detect
 체커보드 시트를 카메라 앞에 놓고 다양한 거리와 각도로 20장 이상 촬영한다.
 
 ```powershell
-python calibrate_camera.py --capture --camera 1
-python calibrate_camera.py --preview --calib calib_camera0.json --camera 1
+python calibrate_camera.py --capture --camera 0
+python calibrate_camera.py --preview --calib calib_camera0.json --camera 0
 ```
 
 기준:
@@ -54,13 +54,13 @@ python calibrate_camera.py --preview --calib calib_camera0.json --camera 1
 수평 조건:
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition level --calib calib_camera0.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition level --calib calib_camera0.json --camera 0
 ```
 
 기울기 조건:
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition tilt_low --calib calib_camera0.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition tilt_low --calib calib_camera0.json --camera 0
 ```
 
 `edge`, `aruco`, `grid`의 성공률과 재투영 오차를 비교한다. 성공률 80% 이상이면 해당 조건에서 GO로 본다.
@@ -70,7 +70,7 @@ python a4_plane_research.py --precheck --precheck-target a4 --all-methods --cond
 A4 없이 약통뚜껑만 카메라에 보여서 탐지가 안정적인지 먼저 확인한다.
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target object --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 1
+python a4_plane_research.py --precheck --precheck-target object --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 0
 ```
 
 그 다음 A4 위에 약통뚜껑을 올려 같은 테스트를 반복해도 된다. 배경이 바뀌었을 때 탐지율이 떨어지는지 확인하는 용도다.
@@ -80,9 +80,9 @@ python a4_plane_research.py --precheck --precheck-target object --model "..\rese
 각 방식별로 A4 좌표계 검출과 약통뚜껑 탐지가 동시에 되는지 확인한다.
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target both --method edge  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 1
-python a4_plane_research.py --precheck --precheck-target both --method aruco --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 1
-python a4_plane_research.py --precheck --precheck-target both --method grid  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 1
+python a4_plane_research.py --precheck --precheck-target both --method edge  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 0
+python a4_plane_research.py --precheck --precheck-target both --method aruco --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 0
+python a4_plane_research.py --precheck --precheck-target both --method grid  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --condition level --calib calib_camera0.json --camera 0
 ```
 
 ## STEP 5: 좌표 오차 측정
@@ -90,9 +90,9 @@ python a4_plane_research.py --precheck --precheck-target both --method grid  --m
 수평 조건에서 3개 방식을 각각 측정한다.
 
 ```powershell
-python a4_plane_research.py --eval --method edge  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 1
-python a4_plane_research.py --eval --method aruco --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 1
-python a4_plane_research.py --eval --method grid  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 1
+python a4_plane_research.py --eval --method edge  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 0
+python a4_plane_research.py --eval --method aruco --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 0
+python a4_plane_research.py --eval --method grid  --model "..\research_runs\pill_cap\runs\04_final_model\weights\best.pt" --object-type pill_cap --expected-class pill_cap --one-point --manual --repeats 5 --condition level --calib calib_camera0.json --camera 0
 ```
 
 기울기 조건도 동일하게 진행하되 `--condition tilt_low`, `tilt_mid`, `tilt_high`처럼 조건명을 분리해서 저장한다.
