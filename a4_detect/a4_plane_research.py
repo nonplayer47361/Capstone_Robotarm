@@ -584,27 +584,28 @@ def run_precheck(
         a4_go   = a4_rate   >= 80.0
         yolo_go = yolo_rate >= 70.0
 
-        # ── 상단 현재 프레임 상태 바 ────────────────────────────────────────────
-        _draw_precheck_top(vis, result.ok, result.repro_err_mm,
-                           pred_cls, yolo_conf_val, pred_x, pred_y)
+        if yolo_model:
+            _draw_precheck_top(vis, result.ok, result.repro_err_mm,
+                               pred_cls, yolo_conf_val, pred_x, pred_y)
+            _draw_precheck_stats(vis, frame_n, window,
+                                 a4_rate, a4_go, avg_repro,
+                                 yolo_rate, yolo_go, avg_conf,
+                                 cls_cnt, True)
 
-        # ── 하단 롤링 통계 패널 ─────────────────────────────────────────────────
-        _draw_precheck_stats(vis, frame_n, window,
-                             a4_rate, a4_go, avg_repro,
-                             yolo_rate, yolo_go, avg_conf,
-                             cls_cnt, yolo_model is not None)
-
-        # ── 미니맵 ────────────────────────────────────────────────────────────
-        mini = _make_minimap(result, [], vis.shape[0])
-        if pred_x is not None and pred_y is not None:
-            # 미니맵은 종횡비 유지로 리사이즈되므로 단일 스케일 사용
-            s  = mini.shape[0] / A4_H_MM
-            mx = int(np.clip(pred_x, 0, A4_W_MM) * s)
-            my = int(np.clip(pred_y, 0, A4_H_MM) * s)
-            cv2.circle(mini, (mx, my), 7, (0, 0, 210), -1)
-            cv2.circle(mini, (mx, my), 8, (255, 255, 255), 1)
-
-        display = np.hstack([vis, mini])
+            mini = _make_minimap(result, [], vis.shape[0])
+            if pred_x is not None and pred_y is not None:
+                # Use the same scale as the minimap height.
+                s  = mini.shape[0] / A4_H_MM
+                mx = int(np.clip(pred_x, 0, A4_W_MM) * s)
+                my = int(np.clip(pred_y, 0, A4_H_MM) * s)
+                cv2.circle(mini, (mx, my), 7, (0, 0, 210), -1)
+                cv2.circle(mini, (mx, my), 8, (255, 255, 255), 1)
+            display = np.hstack([vis, mini])
+        else:
+            display = _append_a4_precheck_status_bar(
+                vis, result.ok, result.repro_err_mm,
+                frame_n, window, a4_rate, a4_go, avg_repro,
+            )
         if first_sample is None:
             first_sample = display.copy()
         if result.ok and first_ok_sample is None:
@@ -1014,6 +1015,37 @@ def _draw_precheck_stats(
                 (10, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (110, 110, 110), 1)
 
     vis[h - 88:h] = panel
+
+
+def _append_a4_precheck_status_bar(
+    vis: np.ndarray,
+    a4_ok: bool,
+    repro_mm: float,
+    frame_n: int,
+    window: int,
+    a4_rate: float,
+    a4_go: bool,
+    avg_repro: float,
+) -> np.ndarray:
+    """Append a compact status bar below the camera image without covering corners."""
+    h, w = vis.shape[:2]
+    bar_h = 54
+    out = np.zeros((h + bar_h, w, 3), dtype=np.uint8)
+    out[:h] = vis
+    bar = out[h:]
+    bar[:] = (22, 22, 22)
+
+    status_color = (0, 220, 80) if a4_ok else (0, 70, 220)
+    status = "OK" if a4_ok else "FAIL"
+    repro_text = f"{repro_mm:.2f}mm" if a4_ok and repro_mm < 1e6 else "-"
+    avg_text = f"{avg_repro:.2f}mm" if not math.isnan(avg_repro) else "-"
+    judge = "GO" if a4_go else "NO-GO"
+
+    cv2.putText(bar, f"A4 {status} | rate {a4_rate:.0f}% [{judge}] | repro {repro_text} | avg {avg_text}",
+                (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.52, status_color, 1)
+    cv2.putText(bar, f"frames {frame_n} / window {window}   R=reset   Q=save+next",
+                (10, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 180, 180), 1)
+    return out
 
 
 def _resize_panel(img: np.ndarray, width: int = 500) -> np.ndarray:
