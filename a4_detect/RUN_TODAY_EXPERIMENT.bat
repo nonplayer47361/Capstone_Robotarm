@@ -28,9 +28,10 @@ echo  6. STEP 5  Coord eval: one method / one object
 echo  7. STEP 5b Coord eval: edge - aruco - grid sequence
 echo  8. STEP 6  Rebuild report from CSV
 echo  9. Show today checklist
+echo  d. Download open-source models (coin/bottle_cap/stone)
 echo  0. Custom a4_plane_research.py args
 echo.
-set /p "MENU=Select [0-9]: "
+set /p "MENU=Select [0-9/d]: "
 set "MENU=%MENU: =%"
 
 if "%MENU%"=="1" goto :calib_capture
@@ -42,6 +43,7 @@ if "%MENU%"=="6" goto :eval_one
 if "%MENU%"=="7" goto :eval_three_methods
 if "%MENU%"=="8" goto :report
 if "%MENU%"=="9" goto :checklist
+if /i "%MENU%"=="d" goto :download_models
 if "%MENU%"=="0" goto :custom
 echo [ERROR] Invalid menu.
 goto :end
@@ -66,61 +68,62 @@ call :ask_condition
 goto :end
 
 :precheck_object
+:: object 먼저 물어봐야 모델 기본값이 결정됨
+call :ask_object
 call :ask_model
-if "%MODEL%"=="" goto :model_missing
+if "!MODEL!"=="" goto :model_missing
 call :ask_calib
 call :ask_condition
-call :ask_object
-%PY_CMD% a4_plane_research.py --precheck --precheck-target object --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --precheck --precheck-target object --model "!MODEL!" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :precheck_both
+call :ask_object
 call :ask_model
-if "%MODEL%"=="" goto :model_missing
+if "!MODEL!"=="" goto :model_missing
 call :ask_calib
 call :ask_condition
-call :ask_object
 call :ask_method
-%PY_CMD% a4_plane_research.py --precheck --precheck-target both --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --precheck --precheck-target both --method "!METHOD!" --model "!MODEL!" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :eval_one
+call :ask_object
 call :ask_model
-if "%MODEL%"=="" goto :model_missing
+if "!MODEL!"=="" goto :model_missing
+call :ask_expected
 call :ask_calib
 call :ask_condition
-call :ask_object
-call :ask_expected
 call :ask_method
 call :ask_repeats
-%PY_CMD% a4_plane_research.py --eval --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --eval --method "!METHOD!" --model "!MODEL!" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :eval_three_methods
+call :ask_object
 call :ask_model
-if "%MODEL%"=="" goto :model_missing
+if "!MODEL!"=="" goto :model_missing
+call :ask_expected
 call :ask_calib
 call :ask_condition
-call :ask_object
-call :ask_expected
 call :ask_repeats
 
 echo.
 echo [1/3] Place EDGE sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method edge --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --eval --method edge  --model "!MODEL!" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 if errorlevel 1 goto :failed
 
 echo.
 echo [2/3] Place ARUCO sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method aruco --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --eval --method aruco --model "!MODEL!" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 if errorlevel 1 goto :failed
 
 echo.
 echo [3/3] Place GRID sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method grid --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
+%PY_CMD% a4_plane_research.py --eval --method grid  --model "!MODEL!" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :report
@@ -133,10 +136,53 @@ if "%CSV_PATH%"=="" (
 %PY_CMD% a4_plane_research.py --report --csv "%CSV_PATH%"
 goto :end
 
+:download_models
+echo.
+echo ============================================================
+echo   Open-source model download
+echo ============================================================
+echo  c. Coin     — Open Images V7 (no API key needed)
+echo  b. Bottle cap — Roboflow Universe (API key required)
+echo  s. Stone      — Roboflow Universe (API key required)
+echo  i. Inspect existing .pt file
+echo  q. Back to main menu
+echo.
+set /p "DL=Select [c/b/s/i/q]: "
+set "DL=%DL: =%"
+
+if /i "!DL!"=="c" (
+    echo.
+    echo [coin] yolov8n-oiv7.pt 다운로드 시작 (약 20MB, 첫 실행 시만 다운로드됩니다)
+    %PY_CMD% tools/setup_models.py --coin
+    echo.
+    echo [coin] 완료! 사용 인자:
+    echo   --model models/coin_oi7n.pt --object-type coin --expected-class Coin
+    goto :end
+)
+if /i "!DL!"=="b" (
+    echo.
+    set /p "RF_KEY=Roboflow API key: "
+    %PY_CMD% tools/setup_models.py --rf bottle_cap --api-key "!RF_KEY!"
+    goto :end
+)
+if /i "!DL!"=="s" (
+    echo.
+    set /p "RF_KEY=Roboflow API key: "
+    %PY_CMD% tools/setup_models.py --rf stone --api-key "!RF_KEY!"
+    goto :end
+)
+if /i "!DL!"=="i" (
+    echo.
+    set /p "PT_PATH=Path to .pt file: "
+    %PY_CMD% tools/setup_models.py --inspect "!PT_PATH!"
+    goto :end
+)
+goto :menu
+
 :custom
 echo.
 echo Example:
-echo   --eval --method aruco --model ..\research_runs\pill_cap\runs\04_final_model\weights\best.pt --object-type pill_cap --one-point --manual --condition level --calib calib_camera0.json --camera 1
+echo   --eval --method aruco --model models/coin_oi7n.pt --object-type coin --expected-class Coin --one-point --manual --condition level --calib calib_camera0.json --camera 1
 echo.
 set /p "ARGS=Args: "
 %PY_CMD% a4_plane_research.py %ARGS%
@@ -146,12 +192,15 @@ goto :end
 echo.
 echo Recommended today flow:
 echo   1) Calibration capture/preview
-echo   2) A4 precheck: condition=level, then tilt_1/tilt_2
-echo   3) Object precheck: pill_cap on paper and off paper
+echo   2) A4 precheck: condition=level, then tilt_low/tilt_mid/tilt_high
+echo   3) Object precheck: pill_cap on paper
 echo   4) Integration precheck: edge/aruco/grid
 echo   5) Coord eval: pill_cap level/tilt for edge/aruco/grid
-echo   6) Coord eval: coin, bottle_cap, stone
-echo      If using the pill_cap model, set expected-class=pill_cap.
+echo   6) Download open-source models  (menu d)
+echo      coin       : models/coin_oi7n.pt        --expected-class Coin
+echo      bottle_cap : models/bottle_cap_rf.pt     --expected-class (inspect 후 확인)
+echo      stone      : models/stone_rf.pt          --expected-class (inspect 후 확인)
+echo   7) Coord eval: coin, bottle_cap, stone  (각 모델 + expected-class 지정)
 echo.
 echo Suggested condition labels:
 echo   level, tilt_low, tilt_mid, tilt_high
@@ -159,13 +208,31 @@ echo.
 goto :end
 
 :: ---------------------------------------------------------------------------
-:ask_model
-set "DEFAULT_MODEL=..\research_runs\pill_cap\runs\04_final_model\weights\best.pt"
+:ask_object
 echo.
-echo Default model: %DEFAULT_MODEL%
+set /p "OBJECT_TYPE=Physical object label (Enter=pill_cap; e.g. coin/bottle_cap/stone): "
+if "!OBJECT_TYPE!"=="" set "OBJECT_TYPE=pill_cap"
+exit /b 0
+
+:ask_model
+:: OBJECT_TYPE 이 설정된 후 호출해야 올바른 기본 모델이 제안됨
+set "DEFAULT_MODEL="
+if /i "!OBJECT_TYPE!"=="coin"       set "DEFAULT_MODEL=models\coin_oi7n.pt"
+if /i "!OBJECT_TYPE!"=="bottle_cap" set "DEFAULT_MODEL=models\bottle_cap_rf.pt"
+if /i "!OBJECT_TYPE!"=="stone"      set "DEFAULT_MODEL=models\stone_rf.pt"
+if "!DEFAULT_MODEL!"=="" (
+    set "DEFAULT_MODEL=..\research_runs\pill_cap\runs\04_final_model\weights\best.pt"
+)
+echo.
+echo Default model for [!OBJECT_TYPE!]: !DEFAULT_MODEL!
 set /p "MODEL=YOLO model path (.pt, Enter=default): "
-if "%MODEL%"=="" (
-    if exist "%DEFAULT_MODEL%" set "MODEL=%DEFAULT_MODEL%"
+if "!MODEL!"=="" (
+    if exist "!DEFAULT_MODEL!" (
+        set "MODEL=!DEFAULT_MODEL!"
+    ) else (
+        echo [WARN] 기본 모델 파일이 없습니다: !DEFAULT_MODEL!
+        echo        메뉴 d 에서 모델을 먼저 다운로드하세요.
+    )
 )
 exit /b 0
 
@@ -173,41 +240,43 @@ exit /b 0
 set "CALIB_ARG="
 echo.
 set /p "CALIB=Calibration JSON (Enter=calib_camera0.json if exists, '-'=none): "
-if "%CALIB%"=="" (
+if "!CALIB!"=="" (
     if exist "calib_camera0.json" set "CALIB=calib_camera0.json"
 )
-if not "%CALIB%"=="" if not "%CALIB%"=="-" set "CALIB_ARG=--calib "%CALIB%""
+if not "!CALIB!"=="" if not "!CALIB!"=="-" set "CALIB_ARG=--calib "!CALIB!""
 exit /b 0
 
 :ask_condition
 echo.
 set /p "CONDITION=Condition label (Enter=level; e.g. level/tilt_low/tilt_mid): "
-if "%CONDITION%"=="" set "CONDITION=level"
-exit /b 0
-
-:ask_object
-echo.
-set /p "OBJECT_TYPE=Physical object label (Enter=pill_cap; e.g. coin/bottle_cap/stone): "
-if "%OBJECT_TYPE%"=="" set "OBJECT_TYPE=pill_cap"
+if "!CONDITION!"=="" set "CONDITION=level"
 exit /b 0
 
 :ask_expected
+:: OBJECT_TYPE 기반으로 기본 expected_class 를 제안
+set "SUGGEST_CLASS="
+if /i "!OBJECT_TYPE!"=="coin"       set "SUGGEST_CLASS=Coin"
+if /i "!OBJECT_TYPE!"=="bottle_cap" set "SUGGEST_CLASS=bottle_cap"
+if /i "!OBJECT_TYPE!"=="stone"      set "SUGGEST_CLASS=rock"
+if /i "!OBJECT_TYPE!"=="pill_cap"   set "SUGGEST_CLASS=pill_cap"
+if "!SUGGEST_CLASS!"=="" set "SUGGEST_CLASS=!OBJECT_TYPE!"
 echo.
-echo If testing coin/bottle_cap/stone with the pill_cap model, enter pill_cap here.
-set /p "EXPECTED_CLASS=Expected YOLO class (Enter=same as object label): "
-if "%EXPECTED_CLASS%"=="" set "EXPECTED_CLASS=%OBJECT_TYPE%"
+echo Suggested expected-class for [!OBJECT_TYPE!]: !SUGGEST_CLASS!
+echo (모델 클래스가 다르면 tools/setup_models.py --inspect 로 확인 후 수정)
+set /p "EXPECTED_CLASS=Expected YOLO class (Enter=!SUGGEST_CLASS!): "
+if "!EXPECTED_CLASS!"=="" set "EXPECTED_CLASS=!SUGGEST_CLASS!"
 exit /b 0
 
 :ask_method
 echo.
 set /p "METHOD=A4 method (Enter=aruco; edge/aruco/grid): "
-if "%METHOD%"=="" set "METHOD=aruco"
+if "!METHOD!"=="" set "METHOD=aruco"
 exit /b 0
 
 :ask_repeats
 echo.
 set /p "REPEATS=Repeats per point (Enter=5): "
-if "%REPEATS%"=="" set "REPEATS=5"
+if "!REPEATS!"=="" set "REPEATS=5"
 exit /b 0
 
 :model_missing
