@@ -35,6 +35,9 @@ fullauto/runs/
 fullauto/comparison_reports/
 _fresh_start_backups/
 *_dataset/
+openset_dataset*/
+openset_runs/
+openset_compare/
 
 # Legacy generated image
 a4_detect/a4_sheet.png
