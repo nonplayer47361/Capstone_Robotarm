@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import math
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,7 @@ class Sample:
     timestamp:    str
     object_type:  str            # 'blueberry' | 'strawberry'
     a4_method:    str            # 'aruco' | 'composite' 등
+    condition:    str            # 'level' | 'tilt_low' | 'tilt_mid' 등 실험 조건
     pt_num:       int            # 테스트 포인트 번호 (1~30)
     true_x:       float          # 실제 A4 좌표 X (mm)
     true_y:       float          # 실제 A4 좌표 Y (mm)
@@ -43,6 +45,13 @@ def _compute_class_ok(true_class: str, pred_class: Optional[str]) -> bool:
     return (pred_class == true_class) if (true_class and pred_class) else True
 
 
+def _slug(value: str) -> str:
+    """파일명에 넣을 수 있는 짧은 ASCII 라벨로 정리."""
+    value = (value or "unspecified").strip().lower()
+    value = re.sub(r"[^0-9a-zA-Z_-]+", "_", value).strip("_")
+    return value or "unspecified"
+
+
 # ── 실험 세션 ──────────────────────────────────────────────────────────────────
 class EvalSession:
     """
@@ -52,6 +61,7 @@ class EvalSession:
     ----------
     object_type : 'blueberry' | 'strawberry' | 임의 문자열
     a4_method   : 'aruco' | 'composite' | ...
+    condition   : 실험 조건 라벨. 예: 'level', 'tilt_low', 'tilt_mid', 'tilt_high'
     log_dir     : CSV 로그 저장 디렉터리
     """
 
@@ -60,15 +70,17 @@ class EvalSession:
         object_type: str,
         a4_method:   str,
         log_dir:     Path,
+        condition:   str = "unspecified",
     ) -> None:
         self.object_type = object_type
         self.a4_method   = a4_method
+        self.condition   = _slug(condition)
         self.log_dir     = Path(log_dir)
         self.samples: list[Sample] = []
 
         self.log_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_path = self.log_dir / f"eval_{object_type}_{a4_method}_{ts}.csv"
+        self.log_path = self.log_dir / f"eval_{object_type}_{a4_method}_{self.condition}_{ts}.csv"
         self._header_written = False
 
     # ── 샘플 추가 ──────────────────────────────────────────────────────────────
@@ -108,6 +120,7 @@ class EvalSession:
             timestamp=ts,
             object_type=self.object_type,
             a4_method=self.a4_method,
+            condition=self.condition,
             pt_num=pt_num,
             true_x=true_x,
             true_y=true_y,
@@ -234,6 +247,7 @@ class EvalSession:
                     timestamp    = row["timestamp"],
                     object_type  = row["object_type"],
                     a4_method    = row["a4_method"],
+                    condition    = row.get("condition", "") or "unspecified",
                     pt_num       = pt_num,
                     true_x       = float(row["true_x"]),
                     true_y       = float(row["true_y"]),

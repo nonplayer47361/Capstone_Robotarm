@@ -111,6 +111,7 @@ def run_eval(
     repeats:              int,
     conf_thresh:          float,
     log_dir:              Path,
+    condition:            str               = "unspecified",
     manual_advance:       bool              = False,
     calib:                CameraCalib | None = None,
     aruco_marker_size_mm: float             = 20.0,
@@ -128,6 +129,7 @@ def run_eval(
     repeats              : 포인트당 캡처 횟수 (기본 3)
     conf_thresh          : YOLO conf 임계값
     log_dir              : CSV 로그 저장 디렉터리
+    condition            : 실험 조건 라벨. 예: level, tilt_low, tilt_mid, tilt_high
     manual_advance       : True → 캡처 완료 후 자동 넘김 없음, [N] 키로 수동 진행
     calib                : CameraCalib — 렌즈 왜곡 보정 파라미터. None 이면 보정 안 함
     aruco_marker_size_mm : 출력물 ArUco 마커 크기 (mm). gen.py 와 반드시 일치
@@ -168,12 +170,12 @@ def run_eval(
     if not is_mixed:
         current_class = object_type
 
-    session  = EvalSession(object_type, plane_method, log_dir)
+    session  = EvalSession(object_type, plane_method, log_dir, condition=condition)
     pt_idx   = 0
     WIN      = f"Coord Eval — {object_type} / {plane_method}  [Space=캡처  N=다음  Q=종료]"
     snap_idx = 0
 
-    print(f"\n[eval] 객체: {object_type}  방법: {plane_method}  모델: {model_path}")
+    print(f"\n[eval] 객체: {object_type}  방법: {plane_method}  조건: {session.condition}  모델: {model_path}")
     if is_mixed:
         print("[eval] MIXED 모드: 1=클래스1 / 2=클래스2 키로 현재 객체 지정 후 Space 캡처")
     if manual_advance:

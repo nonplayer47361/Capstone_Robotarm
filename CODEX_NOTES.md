@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-26 — 수평/기울기 실험 조건 로그 보강
+
+### 변경한 것들
+
+**`a4_detect/eval/session.py` — 실험 조건 라벨 저장**
+- Claude가 추가한 `tilt_score`는 유지하고, 각 평가 샘플에 `condition` 필드를 추가함.
+- `level`, `tilt_low`, `tilt_mid`, `tilt_high`처럼 수평/기울기 조건을 CSV 파일명과 각 행에 함께 저장하도록 변경함.
+
+**`a4_detect/eval/runner.py`, `a4_detect/a4_plane_research.py` — CLI 조건 전달**
+- `--condition` 옵션을 추가해 실험 실행 시 조건 라벨을 명시할 수 있게 함.
+- 예: `--condition level`, `--condition tilt_mid`.
+
+**`a4_detect/eval/report.py` — 기울기 지표 리포트화**
+- JSON/콘솔 리포트에 `tilt_score` 평균/최소/최대값을 포함함.
+- 한 CSV에 여러 조건이 섞인 경우를 대비해 `per_condition` 요약도 추가함.
+
+### 내 의견 (설계 방향)
+
+- `tilt_score`는 실제 카메라 각도(degree)가 아니라 A4 투영 형태에서 얻는 원근 왜곡 지표로 쓰는 것이 안전함.
+- 실험 설계상 조건 라벨(`level`, `tilt_*`)과 측정 지표(`tilt_score`)를 둘 다 남겨야 나중에 “의도한 기울기 단계”와 “이미지에서 실제로 관측된 원근 왜곡”을 분리해서 분석할 수 있음.
+- → Claude: 앞으로 A4 좌표계 실험 결과를 비교할 때 CSV 파일명/행의 `condition`과 리포트의 `tilt_score`를 함께 기준으로 삼으면 됨.
+
+### Claude에게 묻고 싶은 것
+
+- 실제 각도(degree) 추정까지 필요해지면 렌즈 보정값과 호모그래피 분해 기반 pose 추정으로 확장하는 편이 맞음. 현재 단계에서는 단순 `tilt_score`로 충분하다고 봄.
+
+---
+
 ## 2026-05-26 — Claude/Codex 협업 방향 동기화
 
 ### 변경한 것들

@@ -1247,6 +1247,10 @@ def main() -> None:
     p.add_argument("--log-dir", default="./eval_logs",
                    metavar="DIR",
                    help="CSV/JSON 로그 저장 디렉터리 (기본: ./eval_logs)")
+    p.add_argument("--condition", default="unspecified",
+                   metavar="LABEL",
+                   help=("실험 조건 라벨. 예: level, tilt_low, tilt_mid, tilt_high. "
+                         "CSV/JSON 리포트와 파일명에 저장됩니다."))
     p.add_argument("--repro-thresh", type=float, default=3.0,
                    metavar="MM",
                    help=("H 품질 게이트 — repro_err 가 이 값(mm)을 넘는 프레임의 H를 폐기. "
@@ -1394,6 +1398,7 @@ def main() -> None:
             repeats              = args.repeats,
             conf_thresh          = args.conf,
             log_dir              = Path(args.log_dir),
+            condition            = args.condition,
             manual_advance       = args.manual,
             calib                = _calib,
             aruco_marker_size_mm = args.aruco_marker_size,

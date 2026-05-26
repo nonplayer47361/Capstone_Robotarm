@@ -41,6 +41,12 @@ def _safe_median(lst):
 def _safe_stdev(lst):
     return stdev(lst) if len(lst) > 1 else float("nan")
 
+def _safe_min(lst):
+    return min(lst) if lst else float("nan")
+
+def _safe_max(lst):
+    return max(lst) if lst else float("nan")
+
 
 # ── 메인 리포트 계산 ───────────────────────────────────────────────────────────
 def compute_report(samples: list[Sample]) -> dict:
@@ -70,6 +76,8 @@ def compute_report(samples: list[Sample]) -> dict:
     ex_list = [s.error_x    for s in success if s.error_x    is not None]
     ey_list = [s.error_y    for s in success if s.error_y    is not None]
     repro   = [s.a4_repro_err for s in a4_ok if s.a4_repro_err is not None]
+    tilts   = [s.tilt_score for s in samples if s.tilt_score is not None]
+    conditions = sorted({s.condition or "unspecified" for s in samples})
 
     # ── 포인트별 통계 ──────────────────────────────────────────────────────────
     pt_nums   = sorted({s.pt_num for s in samples})
@@ -140,9 +148,32 @@ def compute_report(samples: list[Sample]) -> dict:
     else:
         classification = None
 
+    # ── 조건별 요약: 수평/기울기 실험을 한 CSV에 섞어도 비교 가능 ──────────────
+    per_condition = []
+    for cond in conditions:
+        cond_s = [s for s in samples if (s.condition or "unspecified") == cond]
+        cond_success = [
+            s for s in cond_s
+            if s.a4_ok and s.yolo_ok and s.class_ok and s.error_dist is not None
+        ]
+        cond_errors = [s.error_dist for s in cond_success if s.error_dist is not None]
+        cond_tilts = [s.tilt_score for s in cond_s if s.tilt_score is not None]
+        per_condition.append({
+            "condition"       : cond,
+            "n"               : len(cond_s),
+            "n_coord_ok"      : len(cond_success),
+            "tilt_score_mean" : round(_safe_mean(cond_tilts), 4),
+            "tilt_score_min"  : round(_safe_min(cond_tilts), 4),
+            "tilt_score_max"  : round(_safe_max(cond_tilts), 4),
+            "coord_mean_mm"   : round(_safe_mean(cond_errors), 3),
+            "coord_p90_mm"    : round(_p90(cond_errors), 3),
+        })
+
     return {
         "object_type"         : samples[0].object_type,
         "a4_method"           : samples[0].a4_method,
+        "condition"           : conditions[0] if len(conditions) == 1 else "mixed",
+        "conditions"          : conditions,
         "n_total"             : n,
         "n_a4_ok"             : len(a4_ok),
         "n_yolo_ok"           : sum(1 for s in samples if s.yolo_ok),
@@ -151,6 +182,13 @@ def compute_report(samples: list[Sample]) -> dict:
         "a4_success_rate_pct" : len(a4_ok)   / n * 100,
         "detection_rate_pct"  : len(success) / n * 100,
         "a4_repro_mean_mm"    : round(_safe_mean(repro), 3),
+        "tilt_score": {
+            "n"    : len(tilts),
+            "mean" : round(_safe_mean(tilts), 4),
+            "min"  : round(_safe_min(tilts), 4),
+            "max"  : round(_safe_max(tilts), 4),
+            "note" : "1.0에 가까울수록 수직 촬영에 가깝고, 낮을수록 원근 왜곡이 큰 프레임",
+        },
 
         "coord": {
             "n"              : len(errors),
@@ -178,6 +216,7 @@ def compute_report(samples: list[Sample]) -> dict:
         },
 
         "per_position"  : per_pos,
+        "per_condition" : per_condition,
         "classification": classification,
     }
 
@@ -193,12 +232,20 @@ def print_report(report: dict) -> None:
 
     cls  = report.get("classification")
     mode = "MIXED" if report["object_type"] == "mixed" else report["object_type"]
+    tilt = report.get("tilt_score") or {}
+    tilt_line = "  기울기 지표      : 기록 없음"
+    if tilt.get("n", 0):
+        tilt_line = (
+            f"  기울기 지표      : mean={tilt['mean']:.4f}  "
+            f"min={tilt['min']:.4f}  max={tilt['max']:.4f}  "
+            "(1.0에 가까울수록 수직)"
+        )
 
     lines = [
         "",
         "=" * 62,
         f"  좌표 오차 리포트",
-        f"  객체: {mode}   A4 방법: {report['a4_method']}",
+        f"  객체: {mode}   A4 방법: {report['a4_method']}   조건: {report.get('condition', 'unspecified')}",
         "=" * 62,
         f"  총 캡처         : {report['n_total']}",
         f"  A4 검출 성공    : {report['n_a4_ok']}  ({report['a4_success_rate_pct']:.1f}%)",
@@ -206,6 +253,7 @@ def print_report(report: dict) -> None:
         f"  클래스 정답     : {report['n_class_ok']}",
         f"  좌표 변환 성공  : {report['n_coord_ok']}  ({report['detection_rate_pct']:.1f}%)  [A4+YOLO+class 모두 OK]",
         f"  A4 repro 오차   : {report['a4_repro_mean_mm']:.3f} mm (평균)",
+        tilt_line,
         "-" * 62,
         f"  좌표 오차 통계 (n={c['n']})",
         f"    평균    : {c['mean_mm']:>7.2f} mm",
@@ -240,6 +288,14 @@ def print_report(report: dict) -> None:
         for cls_name, stat in cls["per_class"].items():
             print(f"  {cls_name:<14} {stat['n']:>4}  {stat['correct']:>4}  "
                   f"{stat['acc_pct']:>6.1f}%  {stat['mean_mm']:>12.2f} mm")
+
+    if len(report.get("per_condition", [])) > 1:
+        print(f"\n  조건별 요약")
+        print(f"  {'condition':<14} {'n':>4} {'ok':>4} {'tilt_mean':>10} {'mean':>8} {'p90':>8}")
+        print("  " + "-" * 58)
+        for p in report.get("per_condition", []):
+            print(f"  {p['condition']:<14} {p['n']:>4} {p['n_coord_ok']:>4} "
+                  f"{p['tilt_score_mean']:>10.4f} {p['coord_mean_mm']:>8.2f} {p['coord_p90_mm']:>8.2f}")
 
     # 포인트별 요약
     print(f"\n  포인트별 오차 (mm)")
