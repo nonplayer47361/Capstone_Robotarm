@@ -317,6 +317,7 @@ def run_eval(
                 yolo_conf    = yolo_conf_val,
                 a4_ok        = a4_result.ok,
                 a4_repro_err = a4_result.repro_err_mm if a4_result.ok else None,
+                tilt_score   = a4_result.tilt_score,
                 yolo_ok      = yolo_box is not None,
                 true_class   = current_class,
                 pred_class   = pred_class_val,

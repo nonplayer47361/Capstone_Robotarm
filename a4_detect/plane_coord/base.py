@@ -62,6 +62,28 @@ class DetectResult:
         """호모그래피가 유효하면 True."""
         return self.H is not None
 
+    @property
+    def tilt_score(self) -> float | None:
+        """카메라 기울기 지표 (0.0~1.0). 1.0=수직, 낮을수록 기울어짐.
+
+        A4 코너 4개의 마주보는 변 길이 비율로 원근 왜곡 정도를 추정합니다.
+        min(상변/하변, 좌변/우변) 로 계산 — 1.0 이면 완전 정사각 투영(수직 촬영),
+        0.0 에 가까울수록 심한 원근 왜곡(심한 기울기).
+        corners_px 가 없거나 4개가 아니면 None.
+        """
+        if self.corners_px is None or len(self.corners_px) != 4:
+            return None
+        tl, tr, bl, br = self.corners_px
+        top    = float(np.linalg.norm(tr - tl))
+        bottom = float(np.linalg.norm(br - bl))
+        left   = float(np.linalg.norm(bl - tl))
+        right  = float(np.linalg.norm(br - tr))
+        if max(top, bottom) == 0.0 or max(left, right) == 0.0:
+            return None
+        h_ratio = min(top, bottom) / max(top, bottom)
+        v_ratio = min(left, right) / max(left, right)
+        return float(min(h_ratio, v_ratio))
+
     # ── 좌표 변환 ─────────────────────────────────────────────────────────────
     def px_to_mm(self, px_x: float, px_y: float) -> tuple[float, float]:
         """픽셀 (px_x, px_y) → A4 mm 좌표."""

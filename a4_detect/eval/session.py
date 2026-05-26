@@ -31,6 +31,7 @@ class Sample:
     yolo_conf:    Optional[float]  # YOLO 탐지 신뢰도
     a4_ok:        bool             # A4 검출 성공 여부
     a4_repro_err: Optional[float]  # A4 재투영 오차 (mm)
+    tilt_score:   Optional[float]  # 카메라 기울기 지표 (0.0~1.0). 1.0=수직
     yolo_ok:      bool             # YOLO 탐지 성공 여부 (어떤 클래스든 박스 검출됨)
     class_ok:     bool             # 탐지된 클래스가 true_class 와 일치
     true_class:   str              # 실제 올려놓은 객체 클래스 ('blueberry' | 'strawberry')
@@ -82,8 +83,9 @@ class EvalSession:
         a4_ok:        bool,
         a4_repro_err: Optional[float],
         yolo_ok:      bool,
-        true_class:   str           = "",
-        pred_class:   Optional[str] = None,
+        true_class:   str            = "",
+        pred_class:   Optional[str]  = None,
+        tilt_score:   Optional[float] = None,
     ) -> Sample:
         """샘플 1개를 기록하고 CSV에 즉시 append.
 
@@ -117,6 +119,7 @@ class EvalSession:
             yolo_conf=yolo_conf,
             a4_ok=a4_ok,
             a4_repro_err=a4_repro_err,
+            tilt_score=tilt_score,
             yolo_ok=yolo_ok,
             class_ok=class_ok,
             true_class=tc,
@@ -242,6 +245,7 @@ class EvalSession:
                     yolo_conf    = _f("yolo_conf"),
                     a4_ok        = _b("a4_ok"),
                     a4_repro_err = _f("a4_repro_err"),
+                    tilt_score   = _f("tilt_score"),
                     yolo_ok      = _b("yolo_ok"),
                     class_ok     = ck,
                     true_class   = tc,

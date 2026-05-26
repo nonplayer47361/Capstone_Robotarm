@@ -5,6 +5,97 @@
 
 ---
 
+## 2026-05-26 — tilt_score 추가 + 연구 방향 정리
+
+### 변경한 것들
+
+**`plane_coord/base.py` — `DetectResult.tilt_score` 프로퍼티 추가**
+- A4 코너 4점(TL/TR/BL/BR)의 마주보는 변 길이 비율로 원근 왜곡 정도를 추정
+- `min(상변/하변, 좌변/우변)` → 0.0~1.0, 1.0=수직 촬영, 낮을수록 기울어짐
+- `corners_px` 가 None 이거나 4개가 아니면 None 반환 (탐지 실패 안전 처리)
+- 정밀한 카메라 각도 측정 장비 없이도 촬영 기울기를 CSV에 기록할 수 있음
+- → Codex: `DetectResult` 필드 변경 없음 — `@property` 로 추가했으므로 기존 코드 영향 없음
+
+**`eval/session.py` — `Sample`, `EvalSession.add()`, `load_csv()` 수정**
+- `Sample` 에 `tilt_score: Optional[float]` 필드 추가 (`a4_repro_err` 바로 뒤)
+- `EvalSession.add()` 에 `tilt_score: Optional[float] = None` 파라미터 추가
+- `load_csv()` 에서 `tilt_score` 컬럼 복원 추가 (구버전 CSV 는 빈 문자열 → None 처리)
+
+**`eval/runner.py` — `session.add()` 호출에 `tilt_score` 전달**
+- Space 캡처 시 `tilt_score=a4_result.tilt_score` 를 함께 기록
+- A4 탐지 실패 프레임은 `tilt_score=None`으로 기록됨
+
+---
+
+### 연구 방향 (2026-05-26 기준)
+
+#### 현재 인쇄 준비된 시트
+
+출력 파일:
+- `print_ready_a4_sheets.pdf` — 40장 (8방법 × 5점)
+- `sheet_checkerboard_calib_9x6_25mm.pdf` — 카메라 캘리브레이션용 1장
+
+8가지 A4 좌표 추정 방법:
+1. **edge** — 흰 A4 외곽선만으로 탐지 (마커 없음, 흰 종이만 필요)
+2. **aruco** — ArUco 마커 4개 기반 (가장 안정적)
+3. **color_dot** — 색상 점 4개 기반 (조명 영향 주의)
+4. **grid** — 격자 패턴 기반
+5. **comp_A_aruco** — ArUco 단독 composite
+6. **comp_B_aruco_color** — ArUco + color_dot composite
+7. **comp_C_aruco_grid** — ArUco + grid composite
+8. **comp_D_full** — ArUco + color_dot + grid 전부 composite
+
+#### 1차 실험 계획 (4장만 출력 후 간단 테스트)
+
+**선택된 4장:** sheet #1 (edge), sheet #6 (aruco), sheet #16 (comp_D_full), 체커보드
+
+**테스트 순서 (체크박스):**
+- [ ] 체커보드로 카메라 왜곡 보정 (`calibrate_camera.py --calibrate`)
+  - 수평 자세 vs 기울기 자세 각각 촬영
+- [ ] `edge` / `aruco` / `comp_D_full` 방법 비교 (중앙점 PT1 기준)
+  - 카메라 수평 (tilt_score ≈ 0.90~1.00)
+  - 카메라 소폭 기울기 (tilt_score ≈ 0.70~0.85)
+  - 카메라 급격한 기울기 (tilt_score ≈ 0.50 이하)
+- [ ] 약통뚜껑 YOLO 탐지 확인 (A4 종이 위 / 종이 없이)
+- [ ] YOLO 탐지 + A4 좌표 변환 통합 동작 확인
+- [ ] 동전/페트병뚜껑으로 크기 변화 테스트
+- [ ] 돌멩이(3개, 크기 다름)로 불규칙 형태 테스트
+
+#### 핵심 설계 원칙 (재확인)
+
+**좌표 추정은 객체 크기 독립적:**
+- YOLO bbox 중심점 → H 행렬 → A4 mm 좌표
+- 물체 크기와 무관. 딸기/블루베리처럼 크기 편차 있어도 동일하게 동작
+- 시트의 40mm 원은 인간이 물체를 올려놓을 위치 가이드일 뿐
+
+**tilt_score 활용 방법:**
+- 실험 CSV에 함께 기록 → 기울기별 정확도 분석에 사용
+- 예: `tilt_score > 0.85` 구간과 `< 0.70` 구간 비교 분석
+- 정밀 각도 측정 없이도 기울기 정도를 구간화 가능
+
+**로봇팔 비전 분리 개발:**
+- 현재는 웹캠으로 독립 개발 → 추후 로봇팔 끝단 카메라로 교체
+- 좌표계(A4 mm)가 공통 인터페이스가 되므로 로봇팔 제어 팀과 연동 가능
+
+#### 향후 실험 대상 (로드맵)
+
+| 단계 | 대상 | 목적 |
+|---|---|---|
+| 1 | 약통뚜껑 | 기준 정확도 측정, 방법 비교 |
+| 2 | 동전 / 페트병뚜껑 | 크기 변화 → 좌표 추정 불변성 확인 |
+| 3 | 돌멩이 3개 | 불규칙 형태, 오픈소스 stone 검출 모델 |
+| 4 | 딸기 / 블루베리 | 같은 종류 내 크기 편차, 유사 외형 구분 |
+
+---
+
+### Codex에게 묻고 싶은 것
+
+- `plane_coord/checkerboard.py` 삭제 여부 응답 부탁 (이전 항목 참조)
+- `.gitignore` PNG 제외 절충안 동의 여부 응답 부탁 (이전 항목 참조)
+- tilt_score 가 실험에서 유의미한 구간을 발견하면 `report.py` 에 tilt 구간별 정확도 통계 추가 고려 예정 — 미리 알림
+
+---
+
 ## 2026-05-26 — 코드 리뷰 & 리팩토링 (simplify)
 
 ### 변경한 것들
