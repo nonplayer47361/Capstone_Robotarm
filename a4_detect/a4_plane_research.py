@@ -101,14 +101,42 @@ MINI_SCALE = 2   # 미니맵 스케일: 1mm = 2px
 PRECHECK_LOG_DIR = HERE / "precheck_logs"
 
 
-def _save_precheck_log(tag: str, data: dict) -> Path:
+def _save_precheck_image(path: Path, image: np.ndarray) -> bool:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ok, encoded = cv2.imencode(".jpg", image)
+    if not ok:
+        return False
+    try:
+        path.write_bytes(encoded.tobytes())
+    except OSError:
+        return False
+    return True
+
+
+def _save_precheck_log(tag: str, data: dict, images: list[tuple[str, np.ndarray]] | None = None) -> Path:
     """precheck 결과를 precheck_logs/<tag>_<timestamp>.json 에 저장."""
     PRECHECK_LOG_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = PRECHECK_LOG_DIR / f"{tag}_{ts}.json"
+    saved_images = []
+    if images:
+        img_dir = PRECHECK_LOG_DIR / "images"
+        seen = set()
+        for idx, (label, image) in enumerate(images, start=1):
+            if image is None or id(image) in seen:
+                continue
+            seen.add(id(image))
+            safe_label = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in label)[:32] or f"sample{idx}"
+            img_path = img_dir / f"{tag}_{ts}_{idx:02d}_{safe_label}.jpg"
+            if _save_precheck_image(img_path, image):
+                saved_images.append(str(img_path.relative_to(HERE)))
     data["saved_at"] = ts
+    if saved_images:
+        data["sample_images"] = saved_images
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[precheck] 결과 저장 → {path}")
+    for img_path in saved_images:
+        print(f"[precheck] sample image -> {HERE / img_path}")
     return path
 
 
@@ -485,6 +513,9 @@ def run_precheck(
     frame_n   = 0
     a4_go     = False
     yolo_go   = False
+    first_sample = None
+    first_ok_sample = None
+    last_sample = None
 
     print(f"[precheck] 카메라: {camera_id}  방법: {plane_method}  조건: {condition}  window: {window}프레임")
     if yolo_model is not None:
@@ -573,7 +604,14 @@ def run_precheck(
             cv2.circle(mini, (mx, my), 7, (0, 0, 210), -1)
             cv2.circle(mini, (mx, my), 8, (255, 255, 255), 1)
 
-        cv2.imshow(WIN, np.hstack([vis, mini]))
+        display = np.hstack([vis, mini])
+        if first_sample is None:
+            first_sample = display.copy()
+        if result.ok and first_ok_sample is None:
+            first_ok_sample = display.copy()
+        last_sample = display.copy()
+
+        cv2.imshow(WIN, display)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
@@ -634,7 +672,11 @@ def run_precheck(
         "yolo_conf_mean": None if math.isnan(avg_conf) else round(avg_conf, 4),
         "class_counts": dict(cls_cnt.most_common()),
         "overall_judge": "GO" if overall else "NO-GO",
-    })
+    }, images=[
+        ("first", first_sample),
+        ("first_ok", first_ok_sample),
+        ("last", last_sample),
+    ])
 
 
 def run_precheck_a4_all(
@@ -786,6 +828,9 @@ def run_precheck_object_only(
     cls_cnt = Counter()
     frame_n = 0
     snap_idx = 0
+    first_sample = None
+    first_detected_sample = None
+    last_sample = None
     WIN = "Pre-Check Object Detection — YOLO only  [S=snap  R=reset  Q=quit]"
 
     print(f"[precheck:object] 모델: {model_path}")
@@ -831,6 +876,11 @@ def run_precheck_object_only(
         _draw_object_precheck_panel(
             vis, frame_n, window, det_rate, avg_conf, cls_cnt, best_info
         )
+        if first_sample is None:
+            first_sample = vis.copy()
+        if detected and first_detected_sample is None:
+            first_detected_sample = vis.copy()
+        last_sample = vis.copy()
 
         cv2.imshow(WIN, vis)
         key = cv2.waitKey(1) & 0xFF
@@ -878,7 +928,11 @@ def run_precheck_object_only(
         "judge": "GO" if det_rate >= 70 else "NO-GO",
         "avg_conf": None if math.isnan(avg_conf) else round(avg_conf, 4),
         "class_counts": dict(cls_cnt.most_common()),
-    })
+    }, images=[
+        ("first", first_sample),
+        ("first_detected", first_detected_sample),
+        ("last", last_sample),
+    ])
 
 
 def _draw_precheck_top(
