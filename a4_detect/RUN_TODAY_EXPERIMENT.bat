@@ -47,7 +47,7 @@ echo [ERROR] Invalid menu.
 goto :end
 
 :calib_capture
-%PY_CMD% calibrate_camera.py --capture
+%PY_CMD% calibrate_camera.py --capture --camera 1
 goto :end
 
 :calib_preview
@@ -56,13 +56,13 @@ if "%CALIB_ARG%"=="" (
     echo [ERROR] calibration file is required for preview.
     goto :end
 )
-%PY_CMD% calibrate_camera.py --preview %CALIB_ARG%
+%PY_CMD% calibrate_camera.py --preview %CALIB_ARG% --camera 1
 goto :end
 
 :precheck_a4
 call :ask_calib
 call :ask_condition
-%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :precheck_object
@@ -71,7 +71,7 @@ if "%MODEL%"=="" goto :model_missing
 call :ask_calib
 call :ask_condition
 call :ask_object
-%PY_CMD% a4_plane_research.py --precheck --precheck-target object --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --precheck --precheck-target object --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :precheck_both
@@ -81,7 +81,7 @@ call :ask_calib
 call :ask_condition
 call :ask_object
 call :ask_method
-%PY_CMD% a4_plane_research.py --precheck --precheck-target both --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --precheck --precheck-target both --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :eval_one
@@ -93,7 +93,7 @@ call :ask_object
 call :ask_expected
 call :ask_method
 call :ask_repeats
-%PY_CMD% a4_plane_research.py --eval --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --eval --method "!METHOD!" --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :eval_three_methods
@@ -108,19 +108,19 @@ call :ask_repeats
 echo.
 echo [1/3] Place EDGE sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method edge --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --eval --method edge --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 if errorlevel 1 goto :failed
 
 echo.
 echo [2/3] Place ARUCO sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method aruco --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --eval --method aruco --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 if errorlevel 1 goto :failed
 
 echo.
 echo [3/3] Place GRID sheet, then press any key.
 pause >nul
-%PY_CMD% a4_plane_research.py --eval --method grid --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG%
+%PY_CMD% a4_plane_research.py --eval --method grid --model "%MODEL%" --object-type "!OBJECT_TYPE!" --expected-class "!EXPECTED_CLASS!" --one-point --manual --repeats !REPEATS! --condition "!CONDITION!" %CALIB_ARG% --camera 1
 goto :end
 
 :report
@@ -136,7 +136,7 @@ goto :end
 :custom
 echo.
 echo Example:
-echo   --eval --method aruco --model ..\research_runs\pill_cap\runs\04_final_model\weights\best.pt --object-type pill_cap --one-point --manual --condition level --calib calib_camera0.json
+echo   --eval --method aruco --model ..\research_runs\pill_cap\runs\04_final_model\weights\best.pt --object-type pill_cap --one-point --manual --condition level --calib calib_camera0.json --camera 1
 echo.
 set /p "ARGS=Args: "
 %PY_CMD% a4_plane_research.py %ARGS%

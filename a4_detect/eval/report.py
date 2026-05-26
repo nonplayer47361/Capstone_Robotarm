@@ -289,7 +289,7 @@ def print_report(report: dict) -> None:
             print(f"  {cls_name:<14} {stat['n']:>4}  {stat['correct']:>4}  "
                   f"{stat['acc_pct']:>6.1f}%  {stat['mean_mm']:>12.2f} mm")
 
-    if len(report.get("per_condition", [])) > 1:
+    if len(report.get("per_condition", [])) >= 1:
         print(f"\n  조건별 요약")
         print(f"  {'condition':<14} {'n':>4} {'ok':>4} {'tilt_mean':>10} {'mean':>8} {'p90':>8}")
         print("  " + "-" * 58)
