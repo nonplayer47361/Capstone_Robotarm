@@ -28,7 +28,7 @@ cd "C:\Users\dhtmd\OneDrive\바탕 화면\robotarm\yolo\labeling_tools\a4_detect
 
 1. `1` Camera calibration capture
 2. `2` Camera calibration preview
-3. `3` A4 methods precheck
+3. `3` A4 methods precheck sequence: edge -> aruco -> grid
 4. `4` YOLO object-only precheck
 5. `5` A4 + YOLO integration precheck
 6. `7` edge -> aruco -> grid coordinate evaluation
@@ -51,16 +51,24 @@ python calibrate_camera.py --preview --calib calib_camera0.json --camera 0
 
 ## STEP 2: A4 검출 방식 선행 테스트
 
+오늘 실험에서는 색상점(`color_dot`)과 복합 방식(`composite`)은 제외한다.
+`edge -> aruco -> grid` 순서로 한 장씩 확인하고, 각 창을 `Q`로 종료하면
+`precheck_logs/`에 단계별 JSON 로그가 저장된다.
+
 수평 조건:
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition level --calib calib_camera0.json --camera 0
+python a4_plane_research.py --precheck --precheck-target a4 --method edge --condition level --calib calib_camera1.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --method aruco --condition level --calib calib_camera1.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --method grid --condition level --calib calib_camera1.json --camera 1
 ```
 
 기울기 조건:
 
 ```powershell
-python a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition tilt_low --calib calib_camera0.json --camera 0
+python a4_plane_research.py --precheck --precheck-target a4 --method edge --condition tilt_low --calib calib_camera1.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --method aruco --condition tilt_low --calib calib_camera1.json --camera 1
+python a4_plane_research.py --precheck --precheck-target a4 --method grid --condition tilt_low --calib calib_camera1.json --camera 1
 ```
 
 `edge`, `aruco`, `grid`의 성공률과 재투영 오차를 비교한다. 성공률 80% 이상이면 해당 조건에서 GO로 본다.

@@ -25,7 +25,7 @@ echo   A4 + YOLO Pill-Cap Experiment Runner
 echo ============================================================
 echo  1. STEP 1  Camera calibration capture
 echo  2. STEP 1b Camera calibration preview
-echo  3. STEP 2  A4 methods precheck  (edge / aruco / grid)
+echo  3. STEP 2  A4 methods precheck sequence  (edge - aruco - grid)
 echo  4. STEP 3  YOLO pill-cap object-only precheck
 echo  5. STEP 4  A4 + YOLO integration precheck
 echo  6. STEP 5  Coordinate eval: one method
@@ -66,7 +66,25 @@ goto :end
 call :ask_camera
 call :ask_calib
 call :ask_condition
-%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --all-methods --condition "!CONDITION!" !CALIB_ARG! --camera !CAMERA!
+echo.
+echo [1/3] Place EDGE sheet, then press any key.
+echo       Exit the precheck window with Q to save this step log.
+pause >nul
+%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --method edge --condition "!CONDITION!" !CALIB_ARG! --camera !CAMERA!
+if errorlevel 1 goto :failed
+
+echo.
+echo [2/3] Place ARUCO sheet, then press any key.
+echo       Exit the precheck window with Q to save this step log.
+pause >nul
+%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --method aruco --condition "!CONDITION!" !CALIB_ARG! --camera !CAMERA!
+if errorlevel 1 goto :failed
+
+echo.
+echo [3/3] Place GRID sheet, then press any key.
+echo       Exit the precheck window with Q to save this step log.
+pause >nul
+%PY_CMD% a4_plane_research.py --precheck --precheck-target a4 --method grid --condition "!CONDITION!" !CALIB_ARG! --camera !CAMERA!
 goto :end
 
 :precheck_object
@@ -149,7 +167,7 @@ echo.
 echo Recommended pill-cap flow:
 echo   1) Calibration capture with checkerboard
 echo   2) Calibration preview and RMS check
-echo   3) A4 precheck: level, then tilt_low / tilt_mid / tilt_high
+echo   3) A4 precheck sequence: edge - aruco - grid
 echo   4) YOLO object-only precheck: pill_cap
 echo   5) Integration precheck: edge / aruco / grid
 echo   6) Coordinate eval: level for edge / aruco / grid

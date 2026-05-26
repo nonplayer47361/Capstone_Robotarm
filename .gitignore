@@ -46,6 +46,7 @@ a4_detect/a4_sheet.png
 # Local calibration captures/results
 a4_detect/calib_images/
 a4_detect/calib_camera*.json
+a4_detect/precheck_logs/
 
 # Archives and packaged distributions
 *.zip
